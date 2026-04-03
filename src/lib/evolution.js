@@ -1,21 +1,26 @@
-const EVOLUTION_URL = import.meta.env.VITE_EVOLUTION_URL || 'http://localhost:8080'
-const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY
-
 async function request(path, options = {}) {
-  const url = `${EVOLUTION_URL}${path}`
+  // Use server-side proxy for production, or direct (localhost) for local testing
+  const isProd = import.meta.env.PROD;
+  const url = isProd 
+    ? `/api/whatsapp?path=${encodeURIComponent(path)}` 
+    : `http://localhost:8080${path}`;
+
   const response = await fetch(url, {
-    ...options,
+    method: options.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'apikey': EVOLUTION_API_KEY,
+      // If it's local dev without the proxy, add the VITE_ key (to keep your local testing working)
+      ...(isProd ? {} : { 'apikey': import.meta.env.VITE_EVOLUTION_API_KEY }),
       ...options.headers,
     },
-  })
+    body: options.method && options.method !== 'GET' ? options.body : undefined,
+  });
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'API Request failed' }))
-    throw new Error(error.message || 'API Request failed')
+    const error = await response.json().catch(() => ({ message: 'API Request failed' }));
+    throw new Error(error.message || 'API Request failed');
   }
-  return response.json()
+  return response.json();
 }
 
 export const evolution = {

@@ -120,6 +120,18 @@ export default function SignUpPage() {
             Create Workspace <ArrowRight size={18} style={{ marginLeft: 8 }} />
           </Button>
 
+          <div 
+            onClick={() => navigate('/dashboard')}
+            style={{ 
+              marginTop: 12, textAlign: 'center', fontSize: 13, color: 'var(--muted)', 
+              cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' 
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+          >
+            Access for Client Demo (Bypass Auth)
+          </div>
+
           <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--muted)', marginTop: 20 }}>
             Already have an account? <Link to="/auth" style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>Log In</Link>
           </p>

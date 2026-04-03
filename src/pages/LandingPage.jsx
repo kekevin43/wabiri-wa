@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Zap, MessageSquare, Megaphone, Smartphone, ArrowRight, ShieldCheck, CheckCircle2, Globe, Users } from 'lucide-react'
-import { Button } from '../../components/ui'
+import { Button } from '../components/ui'
 
 export default function LandingPage() {
   const navigate = useNavigate()

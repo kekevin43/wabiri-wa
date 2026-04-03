@@ -2,11 +2,7 @@ import { useState } from 'react'
 import { User, Plus, Search, Filter, MoreVertical, Tag as TagIcon, Mail, Phone, MapPin, Download } from 'lucide-react'
 import { Card, Button, Badge, PageHeader, Input } from '../../components/ui'
 
-const MOCK_CONTACTS = [
-  { id: 1, name: 'John Doe', phone: '+254 712 345 678', tags: ['interested-ruaka', 'hot-lead'], lastActive: '2h ago' },
-  { id: 2, name: 'Jane Smith', phone: '+254 722 987 654', tags: ['follow-up'], lastActive: '1d ago' },
-  { id: 3, name: 'Robert Kamau', phone: '+254 733 111 222', tags: ['client'], lastActive: '3h ago' },
-]
+const MOCK_CONTACTS = []
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState(MOCK_CONTACTS)
@@ -62,7 +58,12 @@ export default function ContactsPage() {
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
-        {contacts.map(contact => (
+        {contacts.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', padding: '60px 20px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', borderRadius: 16, border: '1px dashed var(--border)' }}>
+             <User size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+             <p style={{ margin: 0 }}>No contacts yet. Add your first contact or import a CSV.</p>
+          </div>
+        ) : contacts.map(contact => (
           <Card key={contact.id} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

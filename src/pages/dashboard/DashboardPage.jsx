@@ -103,7 +103,7 @@ export default function DashboardPage() {
              <Card style={{ background: 'var(--accent)', color: '#fff', border: 'none' }}>
                 <div style={{ fontSize: 14, opacity: 0.8, marginBottom: 8 }}>Ready to scale?</div>
                 <div style={{ fontSize: 20, fontFamily: 'Syne', fontWeight: 700, marginBottom: 16 }}>Automate your land sales outreach.</div>
-                <Button variant="ghost" style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}>Explore Templates</Button>
+                <Button variant="ghost" onClick={() => window.location.href='/campaigns'} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}>Explore Templates</Button>
              </Card>
              <Card>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

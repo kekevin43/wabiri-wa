@@ -120,6 +120,18 @@ export default function LoginPage() {
           >
             Sign Into Workspace <ArrowRight size={18} style={{ marginLeft: 8 }} />
           </Button>
+
+          <div 
+            onClick={() => navigate('/dashboard')}
+            style={{ 
+              marginTop: 12, textAlign: 'center', fontSize: 13, color: 'var(--muted)', 
+              cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' 
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+          >
+            Access for Client Demo (Bypass Auth)
+          </div>
         </form>
 
         <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', textAlign: 'center' }}>

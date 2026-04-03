@@ -9,6 +9,7 @@ import BulkSendPage from './pages/send/BulkSendPage'
 import InboxPage from './pages/inbox/InboxPage'
 import ContactsPage from './pages/contacts/ContactsPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import LandingPage from './pages/LandingPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -25,8 +26,8 @@ function ProtectedRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<LoginPage />} />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
       <Route path="/instances" element={<ProtectedRoute><AppShell><InstancesPage /></AppShell></ProtectedRoute>} />
       <Route path="/campaigns" element={<ProtectedRoute><AppShell><CampaignsPage /></AppShell></ProtectedRoute>} />

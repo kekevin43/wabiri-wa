@@ -210,9 +210,32 @@ export default function BulkSendPage() {
         {step === 1 && (
           <Card>
             <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Compose Message</h3>
-            <p style={{ margin: '0 0 20px', color: 'var(--muted)', fontSize: 13 }}>
-              Use <span className="mono" style={{ color: 'var(--accent)' }}>{'{{name}}'}</span> to personalize with contact name.
-            </p>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, display: 'block', marginBottom: 10 }}>
+                 Quick Sales Templates
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {[
+                  { label: 'Plot Viewing', text: 'Hi {{name}}, we have a site visit this Saturday for the Ruaka plots. Are you available to join us?' },
+                  { label: 'Price Drop', text: 'Hi {{name}}, great news! The price for the Syokimau townhouse has just dropped by 10%. Interested?' },
+                  { label: 'Follow up', text: 'Hi {{name}}, just checking if you had a chance to review the title deed scan I sent earlier.' },
+                ].map(tmpl => (
+                  <div 
+                    key={tmpl.label}
+                    onClick={() => setMessage(tmpl.text)}
+                    style={{ 
+                      padding: '10px', background: 'var(--surface2)', border: '1px solid var(--border)', 
+                      borderRadius: 10, fontSize: 12, cursor: 'pointer', textAlign: 'center',
+                      transition: 'all 0.2s', color: 'var(--text-muted)'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+                  >
+                    {tmpl.label}
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, display: 'block', marginBottom: 6 }}>

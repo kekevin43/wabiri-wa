@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Smartphone, Megaphone,
-  Send, LogOut, MessageSquare, Users, Moon, Sun
+  Send, LogOut, MessageSquare, Users, Moon, Sun, Settings
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 
@@ -28,7 +28,7 @@ export default function Sidebar() {
 
   const handleSignOut = async () => {
     await signOut()
-    navigate('/login')
+    navigate('/auth')
   }
 
   return (

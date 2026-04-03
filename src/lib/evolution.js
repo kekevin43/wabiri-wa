@@ -1,8 +1,9 @@
 async function request(path, options = {}) {
   const isProd = import.meta.env.PROD;
+  // Using a stable, managed cloud endpoint for your presentation
   const url = isProd 
     ? `/api/whatsapp?path=${encodeURIComponent(path)}` 
-    : (import.meta.env.VITE_EVOLUTION_URL || `http://localhost:8080`) + path;
+    : (import.meta.env.VITE_EVOLUTION_URL || `https://wabiri-evolution-production.up.railway.app`) + path;
 
   const response = await fetch(url, {
     method: options.method || 'GET',

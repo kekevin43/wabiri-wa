@@ -1,7 +1,6 @@
 async function request(path, options = {}) {
   const isProd = import.meta.env.PROD;
-  // Using a verified, high-availability public gateway for your demo
-  const url = (import.meta.env.VITE_EVOLUTION_URL || `https://v1.evolution-api.com`) + path;
+  const url = (import.meta.env.VITE_EVOLUTION_URL || `http://localhost:8080`) + path;
 
   const response = await fetch(url, {
     method: options.method || 'GET',

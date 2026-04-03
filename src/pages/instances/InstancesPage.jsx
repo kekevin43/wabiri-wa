@@ -20,15 +20,10 @@ function QRModal({ onClose, onSuccess }) {
         setStep('qr');
         startPolling(name);
       } else {
-        throw new Error('Fallback to Demo');
+        throw new Error('No QR code returned');
       }
     } catch (err) {
-      console.warn('Demo Mode: Generating Secure Mock QR');
-      // High-fidelity mock QR for presentation peace of mind
-      setQrCode('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=Wabiri_Demo_Auth');
-      setStep('qr');
-      // Automatically transition to 'connected' after 12 seconds in demo mode
-      setTimeout(() => setStep('connected'), 12000);
+      setError(err.message);
     } finally {
       setLoading(false);
     }

@@ -141,11 +141,15 @@ export default function InstancesPage() {
       setInstances(list.map(inst => {
         // Handle different API version response shapes
         const info = inst.instance || inst;
+        const name = info.instanceName || info.name || info.instance_name;
+        const id = info.instanceId || info.id || name;
+        const status = info.connectionStatus || info.state || info.status;
+        
         return {
-          id: info.instanceId || info.instanceName,
-          name: info.instanceName,
-          number: info.owner || info.number || null,
-          status: (info.state === 'open' || info.status === 'CONNECTED') ? 'connected' : 'disconnected',
+          id,
+          name,
+          number: info.owner || info.number || info.ownerJid?.split('@')[0] || null,
+          status: (status === 'open' || status === 'CONNECTED' || status === 'connected') ? 'connected' : 'disconnected',
           msgs: 0
         }
       }))
@@ -161,11 +165,11 @@ export default function InstancesPage() {
   }, [])
 
   const handleDelete = async (name) => {
-    if (!confirm(`Delete instance ${name}?`)) return
+    if (!name) return alert('Cannot delete: missing instance name')
+    if (!confirm(`Delete instance "${name}"?`)) return
     try {
-      await evolution.logoutInstance?.(name).catch(() => {}); // Optional: Safely logout before delete just in case
       await evolution.deleteInstance(name)
-      fetchInstances()
+      await fetchInstances()
     } catch (e) {
       alert(`Delete failed: ${e.message}`)
     }

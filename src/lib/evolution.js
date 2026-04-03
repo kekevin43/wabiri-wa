@@ -24,10 +24,13 @@ async function request(path, options = {}) {
   });
 
   if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.message || data.error || 'API Request failed');
+    const text = await response.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { message: text }; }
+    throw new Error(data.message || data.error || `HTTP ${response.status}`);
   }
-  return response.json();
+  const text = await response.text();
+  try { return text ? JSON.parse(text) : {}; } catch (_) { return {}; }
 }
 
 export const evolution = {

@@ -11,12 +11,14 @@ export default async function handler(req, res) {
   const { path, ...queryParams } = req.query;
   if (!path) return res.status(400).json({ error: 'Missing path parameter' });
 
-  // Construct the full URL properly
+  // Construct the full URL — req.query already URL-decodes the path string,
+  // so just prefix a slash and append it directly. Do NOT re-encode segments
+  // because that would turn "/instance/delete/foo" into "%2Finstance%2F..."
   const baseUrl = EVOLUTION_URL.endsWith('/') ? EVOLUTION_URL.slice(0, -1) : EVOLUTION_URL;
-  const targetPath = path.startsWith('/') ? path : `/${path}`;
-  
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
   const searchParams = new URLSearchParams(queryParams).toString();
-  const fullUrl = `${baseUrl}${targetPath}${searchParams ? `?${searchParams}` : ''}`;
+  const fullUrl = `${baseUrl}${cleanPath}${searchParams ? `?${searchParams}` : ''}`;
+  console.log(`[proxy] ${req.method} ${fullUrl}`);
 
   try {
     const response = await fetch(fullUrl, {

@@ -9,7 +9,8 @@ async function request(path, options = {}) {
     method: options.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
-      ...(isProd ? {} : { 'apikey': import.meta.env.VITE_EVOLUTION_API_KEY }),
+      // Hardcoded key for the managed presentation endpoint
+      'apikey': import.meta.env.VITE_EVOLUTION_API_KEY || '42214321-4321-4321-4321-432143214321',
       ...options.headers,
     },
     body: options.method && options.method !== 'GET' ? options.body : undefined,

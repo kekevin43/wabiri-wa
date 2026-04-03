@@ -27,11 +27,13 @@ export const evolution = {
   // Instance management
   listInstances: async () => request('/instance/fetchInstances'),
   
-  createInstance: async (instanceName) => 
-    request('/instance/create', {
+  createInstance: async (instanceName) => {
+    const key = import.meta.env.VITE_EVOLUTION_API_KEY || '42214321-4321-4321-4321-432143214321';
+    return request('/instance/create', {
       method: 'POST',
-      body: JSON.stringify({ instanceName, token: EVOLUTION_API_KEY, qrcode: true }),
-    }),
+      body: JSON.stringify({ instanceName, token: key, qrcode: true }),
+    });
+  },
   
   deleteInstance: async (instanceName) =>
     request(`/instance/delete/${instanceName}`, { method: 'DELETE' }),

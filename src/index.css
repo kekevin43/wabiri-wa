@@ -1,20 +1,48 @@
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+/* Light Theme (Default) */
 :root {
-  --bg:        #F8FAFC;
-  --surface:   #FFFFFF;
-  --surface2:  #F1F5F9;
-  --border:    #E2E8F0;
-  --accent:    #00A884; /* WhatsApp/WATI style deep green */
-  --accent-dim:#068c6f;
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface2: #f0f2f5;
+  --surface-header: #f0f2f5;
+  --border: #e9edef;
+  --border-strong: #d1d7db;
+  --accent: #00a884;
+  --accent-dim: #008f6f;
   --accent-glow: rgba(0,168,132,0.15);
-  --text:      #0F172A;
-  --muted:     #64748B;
-  --danger:    #EF4444;
-  --warning:   #F59E0B;
-  --info:      #3B82F6;
-  --shadow:    0 4px 12px rgba(0, 0, 0, 0.05);
+  --text: #111b21;
+  --text-muted: #667781;
+  --muted: var(--text-muted);
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --shadow: 0 1px 3px rgba(11,20,26,0.1);
+  --bubble-in: #ffffff;
+  --bubble-out: #d9fdd3;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --bg: #0a1014;
+  --surface: #111b21;
+  --surface2: #202c33;
+  --surface-header: #202c33;
+  --border: #222e35;
+  --border-strong: #374045;
+  --accent: #00a884;
+  --accent-dim: #008f6f;
+  --accent-glow: rgba(0,168,132,0.15);
+  --text: #e9edef;
+  --text-muted: #8696a0;
+  --muted: var(--text-muted);
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --shadow: 0 1px 3px rgba(11,20,26,0.5);
+  --bubble-in: #202c33;
+  --bubble-out: #005c4b;
 }
 
 * { box-sizing: border-box; }

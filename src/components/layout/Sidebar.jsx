@@ -1,79 +1,69 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Smartphone, Megaphone,
-  Send, LogOut, Zap, MessageSquare, Users
+  Send, LogOut, MessageSquare, Users, Moon, Sun
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 
 const NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/inbox',     icon: MessageSquare,    label: 'Shared Inbox' },
-  { to: '/contacts',  icon: Users,           label: 'Contact List' },
-  { to: '/instances',  icon: Smartphone,      label: 'Instances'  },
+  { to: '/inbox',      icon: MessageSquare,    label: 'Chats' },
+  { to: '/dashboard',  icon: LayoutDashboard,  label: 'Dashboard' },
+  { to: '/contacts',   icon: Users,            label: 'Contacts' },
   { to: '/campaigns',  icon: Megaphone,        label: 'Campaigns'  },
   { to: '/send',       icon: Send,             label: 'Bulk Send'  },
+  { to: '/instances',  icon: Smartphone,       label: 'Devices'  },
 ]
 
 export default function Sidebar() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
+  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light')
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+  }
 
   const handleSignOut = async () => {
     await signOut()
-    navigate('/auth')
+    navigate('/login')
   }
 
   return (
     <aside style={{
-      width: 260,
-      minHeight: '100vh',
-      background: 'var(--surface)',
+      width: 64,
+      height: '100vh',
+      background: 'var(--surface2)',
       borderRight: '1px solid var(--border)',
       display: 'flex',
       flexDirection: 'column',
-      padding: '24px 0',
+      alignItems: 'center',
+      padding: '20px 0',
       flexShrink: 0,
+      zIndex: 50
     }}>
-      {/* Logo */}
-      <div style={{ padding: '0 24px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'var(--accent)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Zap size={20} color="#FFF" strokeWidth={2.5} />
-          </div>
-          <span style={{
-            fontFamily: 'Syne', fontWeight: 800, fontSize: 20,
-            letterSpacing: '-0.5px', color: 'var(--text)'
-          }}>
-            WaBiri
-          </span>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* Tops Items */}
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', alignItems: 'center' }}>
         {NAV.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} style={{ textDecoration: 'none' }}>
+          <NavLink key={to} to={to} style={{ textDecoration: 'none', position: 'relative' }} title={label}>
             {({ isActive }) => (
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 16px', borderRadius: 10,
-                background: isActive ? 'var(--accent-glow)' : 'transparent',
-                color: isActive ? 'var(--accent)' : 'var(--muted)',
-                fontWeight: isActive ? 600 : 500,
-                fontSize: 15,
-                fontFamily: 'Outfit',
-                transition: 'all 0.2s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: '50%',
+                background: isActive ? 'var(--surface)' : 'transparent',
+                color: isActive ? 'var(--text)' : 'var(--text-muted)',
                 cursor: 'pointer',
+                transition: 'all 0.2s',
               }}
-              onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'var(--surface2)' } }}
-              onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' } }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'var(--text-muted)' }}
               >
-                <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                {label}
+                {isActive && (
+                  <div style={{ position: 'absolute', left: -12, top: '50%', transform: 'translateY(-50%)', width: 4, height: 20, background: 'var(--accent)', borderTopRightRadius: 4, borderBottomRightRadius: 4 }} />
+                )}
+                <Icon size={22} fill={isActive ? 'currentColor' : 'none'} stroke={isActive ? 'none' : 'currentColor'} strokeWidth={isActive ? 0 : 2} />
               </div>
             )}
           </NavLink>
@@ -81,20 +71,30 @@ export default function Sidebar() {
       </nav>
 
       {/* Bottom */}
-      <div style={{ padding: '0 16px' }}>
-        <div
-          onClick={handleSignOut}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-            color: 'var(--muted)', fontSize: 15, fontFamily: 'Outfit', fontWeight: 500,
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgba(244,63,94,0.1)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' }}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+        <div 
+          onClick={toggleTheme}
+          style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', cursor: 'pointer', transition: 'color 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+          title="Toggle Theme"
         >
-          <LogOut size={18} strokeWidth={2} />
-          Sign Out
+          {theme === 'light' ? <Moon size={22} /> : <Sun size={22} />}
+        </div>
+        
+        <div 
+          onClick={handleSignOut}
+          style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', cursor: 'pointer', transition: 'color 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+          title="Sign Out"
+        >
+          <LogOut size={22} />
+        </div>
+        
+        {/* Profile Avatar placeholder */}
+        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}>
+           ME
         </div>
       </div>
     </aside>

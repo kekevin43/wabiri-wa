@@ -4,38 +4,26 @@ async function request(path, options = {}) {
     ? `/api/whatsapp?path=${encodeURIComponent(path)}` 
     : (import.meta.env.VITE_EVOLUTION_URL || `http://localhost:8080`) + path;
 
-  try {
-    const response = await fetch(url, {
-      method: options.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(isProd ? {} : { 'apikey': import.meta.env.VITE_EVOLUTION_API_KEY }),
-        ...options.headers,
-      },
-      body: options.method && options.method !== 'GET' ? options.body : undefined,
-    });
+  const response = await fetch(url, {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(isProd ? {} : { 'apikey': import.meta.env.VITE_EVOLUTION_API_KEY }),
+      ...options.headers,
+    },
+    body: options.method && options.method !== 'GET' ? options.body : undefined,
+  });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'API Request failed' }));
-      throw new Error(error.message || 'API Request failed');
-    }
-    return response.json();
-  } catch (err) {
-    console.warn('API Offline - Falling back to Demo Mode', err);
-    // Silent fallback for Demo Mode - always succeed for presentation
-    return { status: 'SUCCESS', message: 'Demo Mode Activated' };
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'API Request failed' }));
+    throw new Error(error.message || 'API Request failed');
   }
+  return response.json();
 }
 
 export const evolution = {
   // Instance management
-  listInstances: async () => {
-    try { 
-      return await request('/instance/fetchInstances');
-    } catch {
-      return [{ instance: { instanceName: 'Wabiri_Master', state: 'open' } }];
-    }
-  },
+  listInstances: async () => request('/instance/fetchInstances'),
   
   createInstance: async (instanceName) => 
     request('/instance/create', {

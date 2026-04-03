@@ -7,9 +7,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Evolution API secrets not configured on server' });
   }
 
-  // 2. Extract path and method from the request
-  const { path } = req.query; // Expecting /api/whatsapp?path=/instance/fetchInstances
-  const fullUrl = `${EVOLUTION_URL}${path}`;
+  // 2. Extract path and all other query parameters
+  const { path, ...queryParams } = req.query;
+  if (!path) return res.status(400).json({ error: 'Missing path parameter' });
+
+  // Construct the full URL properly
+  const baseUrl = EVOLUTION_URL.endsWith('/') ? EVOLUTION_URL.slice(0, -1) : EVOLUTION_URL;
+  const targetPath = path.startsWith('/') ? path : `/${path}`;
+  
+  const searchParams = new URLSearchParams(queryParams).toString();
+  const fullUrl = `${baseUrl}${targetPath}${searchParams ? `?${searchParams}` : ''}`;
 
   try {
     const response = await fetch(fullUrl, {

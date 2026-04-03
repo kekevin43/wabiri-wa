@@ -135,14 +135,20 @@ export default function InstancesPage() {
 
   const fetchInstances = async () => {
     try {
-      const data = await evolution.listInstances()
-      setInstances(data.map(inst => ({
-        id: inst.instance.instanceId,
-        name: inst.instance.instanceName,
-        number: inst.instance.owner || null,
-        status: inst.instance.state === 'open' ? 'connected' : 'disconnected',
-        msgs: 0 // Evolution doesn't track lifetime total easily here
-      })))
+      const rawData = await evolution.listInstances()
+      const list = Array.isArray(rawData) ? rawData : (rawData?.instances || [])
+      
+      setInstances(list.map(inst => {
+        // Handle different API version response shapes
+        const info = inst.instance || inst;
+        return {
+          id: info.instanceId || info.instanceName,
+          name: info.instanceName,
+          number: info.owner || info.number || null,
+          status: (info.state === 'open' || info.status === 'CONNECTED') ? 'connected' : 'disconnected',
+          msgs: 0
+        }
+      }))
     } catch (e) {
       console.error('Failed to fetch instances', e)
     } finally {

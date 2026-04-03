@@ -54,9 +54,18 @@ export default function BulkSendPage() {
   const fileRef = useRef()
 
   useEffect(() => {
-    evolution.listInstances().then(data => {
-      setInstances(data.filter(i => i.instance.state === 'open').map(i => i.instance.instanceName))
-    })
+    evolution.listInstances()
+      .then(rawData => {
+        const list = Array.isArray(rawData) ? rawData : (rawData?.instances || [])
+        const openInstances = list
+          .filter(inst => {
+            const info = inst.instance || inst;
+            return info.state === 'open' || info.status === 'CONNECTED';
+          })
+          .map(inst => (inst.instance || inst).instanceName)
+        setInstances(openInstances)
+      })
+      .catch(err => console.error('Failed to fetch instances for bulk send:', err))
   }, [])
 
   const handleFile = (e) => {

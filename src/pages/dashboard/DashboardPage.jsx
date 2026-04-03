@@ -4,30 +4,20 @@ import { useAuth } from '../../lib/AuthContext'
 import { evolution } from '../../lib/evolution'
 import { useState, useEffect } from 'react'
 
-const RECENT_CAMPAIGNS = [
-  { id: 1, name: 'Q1 Land Listings', status: 'completed', sent: 2840, delivered: 2798, date: 'Apr 2' },
-  { id: 2, name: 'Lead Nurture B', status: 'running',   sent: 125,  delivered: 121,  date: 'Apr 3' },
-  { id: 3, name: 'Property Alerts', status: 'draft',  sent: 0,    delivered: 0,    date: '—'    },
-]
+const RECENT_CAMPAIGNS = []
 
 const STATUS_COLOR = { completed: 'accent', running: 'info', draft: 'muted', failed: 'danger' }
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const [instances, setInstances] = useState(0)
-  const [simMsgCount, setSimMsgCount] = useState(24800)
+  const [simMsgCount, setSimMsgCount] = useState(0)
 
   useEffect(() => {
     // Real Data: Fetch instance count
     evolution.listInstances().then(data => {
       setInstances(data?.length || 0)
     }).catch(() => setInstances(0))
-
-    // Real-Time Simulation for Demo
-    const timer = setInterval(() => {
-      setSimMsgCount(prev => prev + Math.floor(Math.random() * 3))
-    }, 8000)
-    return () => clearInterval(timer)
   }, [])
 
   const downloadReport = () => {
@@ -61,10 +51,10 @@ export default function DashboardPage() {
 
       {/* Hero Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, marginBottom: 32 }}>
-        <StatCard label="Total Messages"      value={simMsgCount.toLocaleString()} icon={Send}        color="accent"   delta={15.2}  />
+        <StatCard label="Total Messages"      value={simMsgCount.toLocaleString()} icon={Send}        color="accent"   delta={0}  />
         <StatCard label="Live Instances"      value={instances.toString().padStart(2, '0')}    icon={Smartphone}  color="info"                />
-        <StatCard label="Avg. Deliverability" value="98.2%"  icon={ShieldCheck} color="accent"   delta={1.2} />
-        <StatCard label="Avg. Response Time"  value="45m"   icon={Clock}       color="warning"  delta={-5.4} />
+        <StatCard label="Avg. Deliverability" value="0%"  icon={ShieldCheck} color="accent"   delta={0} />
+        <StatCard label="Avg. Response Time"  value="0m"   icon={Clock}       color="warning"  delta={0} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24 }}>
@@ -88,7 +78,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {RECENT_CAMPAIGNS.map(c => (
+                {RECENT_CAMPAIGNS.length > 0 ? RECENT_CAMPAIGNS.map(c => (
                   <tr key={c.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.02)' }}>
                     <td style={{ padding: '16px 12px', fontWeight: 600, color: 'var(--text)' }}>{c.name}</td>
                     <td style={{ padding: '16px 12px' }}>
@@ -98,7 +88,13 @@ export default function DashboardPage() {
                     <td style={{ padding: '16px 12px', fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--accent)' }}>{c.delivered.toLocaleString()}</td>
                     <td style={{ padding: '16px 12px', color: 'var(--muted)', fontSize: 13 }}>{c.date}</td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="5" style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                      No recent campaigns
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </Card>
@@ -116,7 +112,7 @@ export default function DashboardPage() {
                    </div>
                    <div>
                       <div style={{ fontSize: 13, color: 'var(--muted)' }}>Inbox Activity</div>
-                      <div style={{ fontWeight: 700, fontSize: 18 }}>18 New Messages</div>
+                      <div style={{ fontWeight: 700, fontSize: 18 }}>0 New Messages</div>
                    </div>
                 </div>
              </Card>

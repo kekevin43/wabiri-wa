@@ -2,23 +2,7 @@ import { useState } from 'react'
 import { Plus, Megaphone, Play, Pause, Eye, Trash2, Calendar, Users } from 'lucide-react'
 import { Card, Badge, Button, PageHeader, Input, Textarea } from '../../components/ui'
 
-const MOCK_CAMPAIGNS = [
-  {
-    id: 'c1', name: 'Ruaka Plots — April Promo', status: 'running',
-    contacts: 850, sent: 430, delivered: 421, failed: 9,
-    scheduled: null, created: 'Apr 1',
-  },
-  {
-    id: 'c2', name: 'Syokimau Townhouses Launch', status: 'draft',
-    contacts: 1200, sent: 0, delivered: 0, failed: 0,
-    scheduled: 'Apr 5, 9:00 AM', created: 'Apr 2',
-  },
-  {
-    id: 'c3', name: 'Q1 End — Listings Clearance', status: 'completed',
-    contacts: 1240, sent: 1240, delivered: 1198, failed: 42,
-    scheduled: null, created: 'Mar 28',
-  },
-]
+const MOCK_CAMPAIGNS = []
 
 const STATUS_COLOR = { running: 'info', draft: 'muted', completed: 'accent', paused: 'warning', failed: 'danger' }
 

@@ -76,6 +76,15 @@ export const evolution = {
       body: JSON.stringify({ remoteJid }) 
     }),
 
+  syncContacts: async (instanceName) =>
+    request(`/chat/findContacts/${instanceName}`, { method: 'POST', body: JSON.stringify({}) }),
+
+  markRead: async (instanceName, remoteJid) =>
+    request(`/chat/markMessageAsRead/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify({ readMessages: [{ remoteJid, fromMe: false, id: 'all' }] }),
+    }),
+
   // State
   getQrCode: async (instanceName) =>
     request(`/instance/connect/${instanceName}`),

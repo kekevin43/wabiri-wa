@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../../lib/AuthContext'
 import { Zap, ArrowRight, ShieldCheck, Building2 } from 'lucide-react'
 import { Button, Input } from '../../components/ui'
 import WabiriLogo from '../../components/WabiriLogo'

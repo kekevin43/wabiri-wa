@@ -64,6 +64,15 @@ export const evolution = {
     })
   },
 
+  findChats: async (instanceName) => 
+    request(`/chat/findChats/${instanceName}`, { method: 'POST', body: JSON.stringify({}) }),
+
+  findMessages: async (instanceName, remoteJid) =>
+    request(`/chat/findMessages/${instanceName}`, { 
+      method: 'POST', 
+      body: JSON.stringify({ remoteJid }) 
+    }),
+
   // State
   getQrCode: async (instanceName) =>
     request(`/instance/connect/${instanceName}`),

@@ -15,7 +15,7 @@ export default function LandingPage() {
         backdropFilter: 'blur(12px)', zIndex: 100 
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <WabiriLogo size={42} showText={true} />
+          <WabiriLogo size={48} showText={true} />
         </div>
         
         <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>

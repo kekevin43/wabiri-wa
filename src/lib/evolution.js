@@ -24,8 +24,8 @@ async function request(path, options = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'API Request failed' }));
-    throw new Error(error.message || 'API Request failed');
+    const data = await response.json();
+    throw new Error(data.message || data.error || 'API Request failed');
   }
   return response.json();
 }
@@ -35,10 +35,9 @@ export const evolution = {
   listInstances: async () => request('/instance/fetchInstances'),
 
   createInstance: async (instanceName) => {
-    const key = import.meta.env.VITE_EVOLUTION_API_KEY || '277ab36ca8ab0744d6a80b912f38e1439712fba9ae00079fd5b877f2d34977b0';
     return request('/instance/create', {
       method: 'POST',
-      body: JSON.stringify({ instanceName, token: key, qrcode: true }),
+      body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
     });
   },
 

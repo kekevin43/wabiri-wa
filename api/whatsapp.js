@@ -25,6 +25,6 @@ export default async function handler(req, res) {
     return res.status(response.status).json(data);
   } catch (error) {
     console.error('Proxy Error:', error);
-    return res.status(500).json({ error: 'Failed to connect to WhatsApp Engine' });
+    return res.status(500).json({ error: error.message || 'Failed to connect to WhatsApp Engine' });
   }
 }

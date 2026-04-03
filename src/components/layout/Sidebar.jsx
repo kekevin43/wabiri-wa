@@ -5,6 +5,7 @@ import {
   Send, LogOut, MessageSquare, Users, Moon, Sun, Settings
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
+import WabiriLogo from '../WabiriLogo'
 
 const NAV = [
   { to: '/inbox',      icon: MessageSquare,    label: 'Chats' },
@@ -40,10 +41,13 @@ export default function Sidebar() {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '20px 0',
+      padding: '16px 0',
       flexShrink: 0,
       zIndex: 50
     }}>
+      <div style={{ marginBottom: 20 }}>
+         <WabiriLogo size={36} />
+      </div>
       {/* Tops Items */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', alignItems: 'center' }}>
         {NAV.map(({ to, icon: Icon, label }) => (

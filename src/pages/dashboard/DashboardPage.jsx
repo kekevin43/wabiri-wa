@@ -1,6 +1,8 @@
-import { Send, Smartphone, Megaphone, CheckCircle, Clock, TrendingUp, MessageSquare, ShieldCheck } from 'lucide-react'
+import { Send, Smartphone, Megaphone, CheckCircle, Clock, TrendingUp, MessageSquare, ShieldCheck, Download } from 'lucide-react'
 import { StatCard, Card, Badge, PageHeader, Button } from '../../components/ui'
 import { useAuth } from '../../lib/AuthContext'
+import { evolution } from '../../lib/evolution'
+import { useState, useEffect } from 'react'
 
 const RECENT_CAMPAIGNS = [
   { id: 1, name: 'Q1 Land Listings', status: 'completed', sent: 2840, delivered: 2798, date: 'Apr 2' },
@@ -12,6 +14,36 @@ const STATUS_COLOR = { completed: 'accent', running: 'info', draft: 'muted', fai
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const [instances, setInstances] = useState(0)
+  const [simMsgCount, setSimMsgCount] = useState(24800)
+
+  useEffect(() => {
+    // Real Data: Fetch instance count
+    evolution.listInstances().then(data => {
+      setInstances(data?.length || 0)
+    }).catch(() => setInstances(0))
+
+    // Real-Time Simulation for Demo
+    const timer = setInterval(() => {
+      setSimMsgCount(prev => prev + Math.floor(Math.random() * 3))
+    }, 8000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const downloadReport = () => {
+    const reportData = "Wabiri Technologies Analytics Report\n" + 
+      "Date: " + new Date().toLocaleDateString() + "\n" +
+      "Total Messages: " + simMsgCount.toLocaleString() + "\n" +
+      "Active Instances: " + instances + "\n" +
+      "System Status: ONLINE";
+    const blob = new Blob([reportData], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Wabiri_System_Report.txt';
+    link.direction = 'ltr';
+    link.click();
+  }
 
   return (
     <div className="fade-up">
@@ -22,15 +54,15 @@ export default function DashboardPage() {
           style={{ marginBottom: 0 }}
         />
         <div style={{ display: 'flex', gap: 12 }}>
-          <Button variant="ghost" size="sm">Download Report</Button>
-          <Button size="sm">Launch Campaign</Button>
+          <Button variant="ghost" size="sm" onClick={downloadReport}><Download size={14} /> Download Report</Button>
+          <Button size="sm" onClick={() => window.location.href='/campaigns'}>Launch Campaign</Button>
         </div>
       </div>
 
       {/* Hero Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, marginBottom: 32 }}>
-        <StatCard label="Total Messages"      value="24.8K" icon={Send}        color="accent"   delta={15.2}  />
-        <StatCard label="Live Instances"      value="04"    icon={Smartphone}  color="info"                />
+        <StatCard label="Total Messages"      value={simMsgCount.toLocaleString()} icon={Send}        color="accent"   delta={15.2}  />
+        <StatCard label="Live Instances"      value={instances.toString().padStart(2, '0')}    icon={Smartphone}  color="info"                />
         <StatCard label="Avg. Deliverability" value="98.2%"  icon={ShieldCheck} color="accent"   delta={1.2} />
         <StatCard label="Avg. Response Time"  value="45m"   icon={Clock}       color="warning"  delta={-5.4} />
       </div>

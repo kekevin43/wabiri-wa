@@ -10,6 +10,7 @@ import InboxPage from './pages/inbox/InboxPage'
 import ContactsPage from './pages/contacts/ContactsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import LandingPage from './pages/LandingPage'
+import SignUpPage from './pages/auth/SignUpPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -28,6 +29,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<LoginPage />} />
+      <Route path="/signup" element={<SignUpPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
       <Route path="/instances" element={<ProtectedRoute><AppShell><InstancesPage /></AppShell></ProtectedRoute>} />
       <Route path="/campaigns" element={<ProtectedRoute><AppShell><CampaignsPage /></AppShell></ProtectedRoute>} />

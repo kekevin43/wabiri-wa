@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { User, Plus, Search, Filter, MoreVertical, Tag as TagIcon, Mail, Phone, MapPin } from 'lucide-react'
+import { User, Plus, Search, Filter, MoreVertical, Tag as TagIcon, Mail, Phone, MapPin, Download } from 'lucide-react'
 import { Card, Button, Badge, PageHeader, Input } from '../../components/ui'
 
 const MOCK_CONTACTS = [
@@ -12,6 +11,23 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState(MOCK_CONTACTS)
   const [search, setSearch] = useState('')
 
+  const downloadContacts = () => {
+    const headers = ['Name', 'Phone', 'Tags', 'Last Active'];
+    const csvData = contacts.map(c => [c.name, c.phone, c.tags.join(';'), c.lastActive]);
+    const csvContent = [headers, ...csvData].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "wabiri_contacts_export.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }
+
   return (
     <div className="fade-up">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
@@ -20,7 +36,10 @@ export default function ContactsPage() {
           subtitle="Manage your leads and client relationships"
           style={{ marginBottom: 0 }}
         />
-        <Button size="sm"><Plus size={16} /> Add Contact</Button>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <Button variant="ghost" size="sm" onClick={downloadContacts}><Download size={16} /> Export CSV</Button>
+          <Button size="sm"><Plus size={16} /> Add Contact</Button>
+        </div>
       </div>
 
       <Card style={{ marginBottom: 24, padding: '16px 20px' }}>

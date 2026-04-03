@@ -1,9 +1,8 @@
 async function request(path, options = {}) {
-  // Use server-side proxy for production, or direct (localhost) for local testing
   const isProd = import.meta.env.PROD;
   const url = isProd 
     ? `/api/whatsapp?path=${encodeURIComponent(path)}` 
-    : `http://localhost:8080${path}`;
+    : (import.meta.env.VITE_EVOLUTION_URL || `http://localhost:8080`) + path;
 
   const response = await fetch(url, {
     method: options.method || 'GET',

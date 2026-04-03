@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Zap, MessageSquare, Megaphone, Smartphone, ArrowRight, ShieldCheck, CheckCircle2, Globe, Users } from 'lucide-react'
 import { Button } from '../components/ui'
+import WabiriLogo from '../components/WabiriLogo'
 
 export default function LandingPage() {
   const navigate = useNavigate()
@@ -13,14 +14,8 @@ export default function LandingPage() {
         padding: '24px 6%', position: 'sticky', top: 0, background: 'rgba(248, 250, 252, 0.8)',
         backdropFilter: 'blur(12px)', zIndex: 100 
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ 
-            width: 32, height: 32, borderRadius: 8, background: 'var(--accent)', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center' 
-          }}>
-            <Zap size={18} color="#fff" />
-          </div>
-          <span style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Syne', letterSpacing: '-0.5px' }}>WaBiri</span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <WabiriLogo size={42} showText={true} />
         </div>
         
         <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
@@ -28,7 +23,7 @@ export default function LandingPage() {
              <span key={item} style={{ fontSize: 14, fontWeight: 500, color: '#64748b', cursor: 'pointer' }}>{item}</span>
            ))}
            <Button variant="ghost" size="sm" onClick={() => navigate('/auth')}>Login</Button>
-           <Button size="sm" onClick={() => navigate('/auth')}>Get Started</Button>
+           <Button size="sm" onClick={() => navigate('/signup')}>Sign Up</Button>
         </div>
       </nav>
 
@@ -51,7 +46,7 @@ export default function LandingPage() {
           maxWidth: 900, marginBottom: 24, lineHeight: 1.1, letterSpacing: '-1.5px',
           position: 'relative'
         }}>
-          Close Properties 10x Faster with <span style={{ color: 'var(--accent)' }}>WaBiri.</span>
+          Close Properties 10x Faster with <span style={{ color: 'var(--accent)' }}>Wabiri Technologies.</span>
         </h1>
         <p style={{ 
           fontSize: 'clamp(16px, 2vw, 20px)', color: '#64748b', maxWidth: 640, 
@@ -62,7 +57,7 @@ export default function LandingPage() {
         </p>
         
         <div style={{ display: 'flex', gap: 16, position: 'relative' }}>
-          <Button onClick={() => navigate('/auth')} style={{ padding: '16px 36px', fontSize: 16 }}>
+          <Button onClick={() => navigate('/signup')} style={{ padding: '16px 36px', fontSize: 16 }}>
              Start Your Free Trial <ArrowRight size={18} style={{ marginLeft: 8 }} />
           </Button>
           <Button variant="ghost" style={{ padding: '16px 36px', fontSize: 16, background: '#fff' }}>
@@ -101,12 +96,12 @@ export default function LandingPage() {
              { title: 'Enterprise Security', icon: ShieldCheck, desc: 'Secure encryption and Row-Level Security managed by Supabase.' }
            ].map(feat => (
              <div key={feat.title} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ 
-                  width: 48, height: 48, borderRadius: 14, background: 'var(--accent-glow)', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' 
-                }}>
-                  <feat.icon size={24} />
-                </div>
+                 <div style={{ 
+                   width: 48, height: 48, borderRadius: 14, background: 'var(--accent-glow)', 
+                   display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' 
+                 }}>
+                   <feat.icon size={24} />
+                 </div>
                 <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{feat.title}</h3>
                 <p style={{ color: '#64748b', fontSize: 15, lineHeight: 1.6, margin: 0 }}>{feat.desc}</p>
              </div>
@@ -117,15 +112,15 @@ export default function LandingPage() {
       {/* Pricing Tease */}
       <section style={{ padding: '120px 6%', textAlign: 'center', background: 'var(--accent)', color: '#fff' }}>
          <h2 style={{ fontSize: 42, fontWeight: 800, fontFamily: 'Syne', marginBottom: 16 }}>Ready to take the lead?</h2>
-         <p style={{ opacity: 0.9, marginBottom: 40, fontSize: 18 }}>Join 500+ agents already closing deals with WaBiri.</p>
-         <Button onClick={() => navigate('/auth')} style={{ background: '#fff', color: '#000', padding: '16px 48px' }}>
+         <p style={{ opacity: 0.9, marginBottom: 40, fontSize: 18 }}>Join 500+ agents already closing deals with Wabiri Technologies.</p>
+         <Button onClick={() => navigate('/signup')} style={{ background: '#fff', color: '#000', padding: '16px 48px' }}>
             Get Your Access Now
          </Button>
       </section>
 
       {/* Footer */}
       <footer style={{ padding: '60px 6%', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 14 }}>
-         <div>© 2026 WaBiri Workspace. All rights reserved.</div>
+         <div>© 2026 Wabiri Technologies. All rights reserved.</div>
          <div style={{ display: 'flex', gap: 24 }}>
            <span>Privacy Policy</span>
            <span>Terms of Service</span>

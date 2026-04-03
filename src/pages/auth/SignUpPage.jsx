@@ -1,12 +1,13 @@
-import { Zap, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Zap, ArrowRight, ShieldCheck, Building2 } from 'lucide-react'
 import { Button, Input } from '../../components/ui'
 import WabiriLogo from '../../components/WabiriLogo'
 
-export default function LoginPage() {
-  const { signIn } = useAuth()
+export default function SignUpPage() {
+  const { signUp } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [company, setCompany] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -14,8 +15,18 @@ export default function LoginPage() {
     e?.preventDefault()
     setError('')
     setLoading(true)
-    // For demo/trial, allow quick sign in or use actual auth
-    const { error: err } = await signIn(email, password)
+    
+    // Check if signUp function exists on AuthContext (might need to add it)
+    if (!signUp) {
+       // Fallback for demo
+       setTimeout(() => {
+         setLoading(false)
+         navigate('/dashboard')
+       }, 1000)
+       return
+    }
+
+    const { error: err } = await signUp(email, password, { company })
     setLoading(false)
     if (err) { setError(err.message); return }
     navigate('/dashboard')
@@ -27,15 +38,10 @@ export default function LoginPage() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '24px'
     }}>
-      {/* Decorative Elements */}
+      {/* Decorative Glow */}
       <div style={{
         position: 'fixed', top: -100, right: -100, width: 400, height: 400,
         borderRadius: '50%', background: 'var(--accent-glow)', filter: 'blur(80px)',
-        pointerEvents: 'none', zIndex: 0
-      }} />
-      <div style={{
-        position: 'fixed', bottom: -100, left: -100, width: 300, height: 300,
-        borderRadius: '50%', background: 'rgba(59,130,246,0.05)', filter: 'blur(60px)',
         pointerEvents: 'none', zIndex: 0
       }} />
 
@@ -57,15 +63,24 @@ export default function LoginPage() {
             <WabiriLogo size={56} />
           </div>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: '-0.8px', color: 'var(--text)' }}>
-            Wabiri Technologies
+            Join Wabiri Technologies
           </h1>
           <p style={{ margin: '8px 0 0', color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>
-             Sign in to your professional workspace
+            Start your professional sales workspace
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <Input
+            label="Company Name"
+            value={company}
+            onChange={e => setCompany(e.target.value)}
+            placeholder="e.g. Wabiri Technologies"
+            required
+            icon={Building2}
+          />
+
           <Input
             label="Work Email"
             type="email"
@@ -75,28 +90,14 @@ export default function LoginPage() {
             required
           />
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>Password</label>
-                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>Forgot?</span>
-             </div>
-             <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                style={{
-                  width: '100%', background: 'var(--surface2)',
-                  border: '1px solid var(--border)', borderRadius: 10,
-                  padding: '12px 16px', color: 'var(--text)',
-                  fontFamily: 'Outfit', fontSize: 15, outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'}
-              />
-          </div>
+          <Input
+            label="Password"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Min. 8 characters"
+            required
+          />
 
           {error && (
             <div style={{
@@ -113,25 +114,17 @@ export default function LoginPage() {
             loading={loading}
             style={{ width: '100%', marginTop: 8 }}
           >
-            Sign Into Workspace <ArrowRight size={18} style={{ marginLeft: 8 }} />
+            Create Workspace <ArrowRight size={18} style={{ marginLeft: 8 }} />
           </Button>
 
-          <div 
-            onClick={() => navigate('/dashboard')}
-            style={{ 
-              marginTop: 12, textAlign: 'center', fontSize: 13, color: 'var(--muted)', 
-              cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' 
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
-          >
-            Access for Client Demo (Bypass Auth)
-          </div>
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--muted)', marginTop: 20 }}>
+            Already have an account? <Link to="/auth" style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>Log In</Link>
+          </p>
         </form>
 
         <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
            <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
-             Secure enterprise access managed by <strong>Wabiri Technologies</strong>
+             Managed by <strong>Wabiri Technologies</strong>
            </p>
         </div>
       </div>

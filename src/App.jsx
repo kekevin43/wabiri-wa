@@ -19,8 +19,7 @@ function ProtectedRoute({ children }) {
       Loading...
     </div>
   )
-  // Auth guard — uncomment when Supabase is wired:
-  // if (!user) return <Navigate to="/auth" replace />
+  if (!user) return <Navigate to="/auth" replace />
   return children
 }
 

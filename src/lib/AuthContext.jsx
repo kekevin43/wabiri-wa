@@ -19,35 +19,15 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signIn = async (email, password) => {
-    try {
-      const res = await supabase.auth.signInWithPassword({ email, password })
-      if (res.error) throw res.error;
-      return res;
-    } catch (err) {
-      // Demo Mode: Always succeed for presentation
-      console.warn('Auth Offline - Proceeding with Mock User', err);
-      const mockUser = { id: 'demo-user', email, user_metadata: { company_name: 'Demo Company' } };
-      setUser(mockUser);
-      return { data: { user: mockUser }, error: null };
-    }
+    return await supabase.auth.signInWithPassword({ email, password })
   }
 
   const signUp = async (email, password, { company }) => {
-    try {
-      const res = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: { data: { company_name: company } }
-      })
-      if (res.error) throw res.error;
-      return res;
-    } catch (err) {
-      // Demo Mode: Always succeed for presentation
-      console.warn('Auth Offline - Mocking Successful Workspace Creation', err);
-      const mockUser = { id: 'demo-user', email, user_metadata: { company_name: company } };
-      setUser(mockUser);
-      return { data: { user: mockUser }, error: null };
-    }
+    return await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: { data: { company_name: company } }
+    })
   }
 
   const signOut = () => supabase.auth.signOut()

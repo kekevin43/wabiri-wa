@@ -44,6 +44,9 @@ export const evolution = {
   deleteInstance: async (instanceName) =>
     request(`/instance/delete/${instanceName}`, { method: 'DELETE' }),
 
+  logoutInstance: async (instanceName) =>
+    request(`/instance/logout/${instanceName}`, { method: 'DELETE' }),
+
   connectInstance: async (instanceName) =>
     request(`/instance/connect/${instanceName}`),
 

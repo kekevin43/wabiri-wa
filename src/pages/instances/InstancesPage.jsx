@@ -163,10 +163,11 @@ export default function InstancesPage() {
   const handleDelete = async (name) => {
     if (!confirm(`Delete instance ${name}?`)) return
     try {
+      await evolution.logoutInstance?.(name).catch(() => {}); // Optional: Safely logout before delete just in case
       await evolution.deleteInstance(name)
       fetchInstances()
     } catch (e) {
-      alert('Delete failed')
+      alert(`Delete failed: ${e.message}`)
     }
   }
 

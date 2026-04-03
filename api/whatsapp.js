@@ -21,13 +21,16 @@ export default async function handler(req, res) {
   console.log(`[proxy] ${req.method} ${fullUrl}`);
 
   try {
+    const method = req.method;
+    const hasBody = method !== 'GET' && method !== 'DELETE' && req.body && Object.keys(req.body).length > 0;
+
     const response = await fetch(fullUrl, {
-      method: req.method,
+      method,
       headers: {
         'Content-Type': 'application/json',
         'apikey': EVOLUTION_API_KEY,
       },
-      body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined,
+      body: hasBody ? JSON.stringify(req.body) : undefined,
     });
 
     const text = await response.text();

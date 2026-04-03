@@ -72,6 +72,21 @@ export default function Sidebar() {
 
       {/* Bottom */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+        <NavLink to="/settings" style={{ textDecoration: 'none' }} title="Settings">
+          {({ isActive }) => (
+            <div style={{ 
+              width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isActive ? 'var(--surface)' : 'transparent',
+              color: isActive ? 'var(--text)' : 'var(--text-muted)', cursor: 'pointer', transition: 'all 0.2s' 
+            }}
+            onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'var(--text)' }}
+            onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'var(--text-muted)' }}
+            >
+              <Settings size={22} fill={isActive ? 'currentColor' : 'none'} stroke={isActive ? 'none' : 'currentColor'} strokeWidth={isActive ? 0 : 2} />
+            </div>
+          )}
+        </NavLink>
+
         <div 
           onClick={toggleTheme}
           style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', cursor: 'pointer', transition: 'color 0.2s' }}

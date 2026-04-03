@@ -8,6 +8,7 @@ import CampaignsPage from './pages/campaigns/CampaignsPage'
 import BulkSendPage from './pages/send/BulkSendPage'
 import InboxPage from './pages/inbox/InboxPage'
 import ContactsPage from './pages/contacts/ContactsPage'
+import SettingsPage from './pages/settings/SettingsPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -32,6 +33,7 @@ function AppRoutes() {
       <Route path="/send" element={<ProtectedRoute><AppShell><BulkSendPage /></AppShell></ProtectedRoute>} />
       <Route path="/inbox" element={<ProtectedRoute><AppShell><InboxPage /></AppShell></ProtectedRoute>} />
       <Route path="/contacts" element={<ProtectedRoute><AppShell><ContactsPage /></AppShell></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><AppShell><SettingsPage /></AppShell></ProtectedRoute>} />
     </Routes>
   )
 }

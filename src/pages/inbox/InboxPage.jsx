@@ -69,14 +69,26 @@ export default function InboxPage() {
   // Auto-scroll
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // 1. Load instances
+  // 1. Load ALL instances (don't filter by status — let chat fetch determine usability)
   useEffect(() => {
     evolution.listInstances().then(res => {
-      const list = Array.isArray(res) ? res : (res?.instances || [])
-      const connected = list.map(i => i.instance || i)
-        .filter(i => ['open', 'CONNECTED', 'connected'].includes(i.state || i.status || i.connectionStatus))
-      setInstances(connected)
-      if (connected.length > 0) setActiveInstance(connected[0].instanceName)
+      const raw = Array.isArray(res) ? res : (res?.instances || [])
+      // Unwrap nested .instance if present, normalise status
+      const list = raw.map(i => {
+        const info = i.instance || i
+        const statusRaw = info.connectionStatus || info.state || info.status || ''
+        return {
+          instanceName: info.instanceName || info.name || '',
+          number: info.owner || info.ownerJid?.split('@')[0] || info.number || null,
+          connected: ['open', 'CONNECTED', 'connected'].includes(statusRaw),
+        }
+      }).filter(i => i.instanceName) // only need a name
+
+      // Sort: connected first
+      list.sort((a, b) => (b.connected ? 1 : 0) - (a.connected ? 1 : 0))
+
+      setInstances(list)
+      if (list.length > 0) setActiveInstance(list[0].instanceName)
     }).catch(console.error)
   }, [])
 
@@ -286,7 +298,11 @@ export default function InboxPage() {
             <Smartphone size={14} color="var(--accent)" />
             <select value={activeInstance || ''} onChange={e => { setActiveInstance(e.target.value); setSelectedChat(null) }}
               style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text)', outline: 'none', fontWeight: 600, fontSize: 13 }}>
-              {instances.map(i => <option key={i.instanceName} value={i.instanceName}>{i.instanceName}</option>)}
+              {instances.map(i => (
+                <option key={i.instanceName} value={i.instanceName}>
+                  {i.instanceName}{i.number ? ` · ${i.number}` : ''}{i.connected ? '' : ' (offline)'}
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -310,9 +326,10 @@ export default function InboxPage() {
         {/* Chat list */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {instances.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14, lineHeight: 1.7 }}>
-              No connected instances.<br />
-              <a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Go to Instances →</a>
+            <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)', fontSize: 14, lineHeight: 1.8 }}>
+              <Smartphone size={32} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }} />
+              No WhatsApp devices connected.<br />
+              <a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Connect a device →</a>
             </div>
           ) : loadingChats && filteredChats.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>

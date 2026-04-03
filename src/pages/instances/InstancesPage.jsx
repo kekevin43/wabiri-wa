@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Smartphone, Plus, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Card, Badge, Button, PageHeader, Input } from '../../components/ui'
 import { evolution } from '../../lib/evolution'
+import { useNavigate } from 'react-router-dom'
 
 // ── QR Modal ─────────────────────────────────────────────────────────────────
 function QRModal({ instanceName: existingName, onClose, onSuccess }) {
@@ -150,6 +151,7 @@ export default function InstancesPage() {
   const [modal, setModal] = useState(null) // null | { instanceName?: string }
   const [deletingId, setDeletingId] = useState(null)
   const pollRef = useRef(null)
+  const navigate = useNavigate()
 
   const parseInstances = (rawData) => {
     const list = Array.isArray(rawData) ? rawData : (rawData?.instances || [])
@@ -318,7 +320,12 @@ export default function InstancesPage() {
         <QRModal
           instanceName={modal.instanceName}
           onClose={() => setModal(null)}
-          onSuccess={() => { setModal(null); fetchInstances() }}
+          onSuccess={() => {
+            setModal(null)
+            fetchInstances()
+            // Auto-navigate to inbox after connecting — WhatsApp Web behaviour
+            setTimeout(() => navigate('/inbox'), 800)
+          }}
         />
       )}
     </div>

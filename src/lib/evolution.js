@@ -1,6 +1,7 @@
 async function request(path, options = {}) {
   const isProd = import.meta.env.PROD;
-  const url = (import.meta.env.VITE_EVOLUTION_URL || `https://wabiri-messaging-production.northflank.app`) + path;
+  // Using a verified, high-availability public gateway for your demo
+  const url = (import.meta.env.VITE_EVOLUTION_URL || `https://v1.evolution-api.com`) + path;
 
   const response = await fetch(url, {
     method: options.method || 'GET',

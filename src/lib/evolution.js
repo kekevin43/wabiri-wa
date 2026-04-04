@@ -1,72 +1,73 @@
-async function request(path, options = {}) {
-  const isProd = import.meta.env.PROD;
-  const baseUrl = import.meta.env.VITE_EVOLUTION_URL || 'http://localhost:8080';
+const request = async (path, options = {}) => {
+  const PROXY_URL = '/api/whatsapp'
+  const url = `${PROXY_URL}?path=${encodeURIComponent(path)}`
 
-  // Use proxy in production to hide secrets, direct call in development
-  const url = isProd
-    ? `/api/whatsapp?path=${encodeURIComponent(path)}`
-    : `${baseUrl}${path}`;
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
 
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
+    const text = await res.text()
+    let data
+    try {
+      data = text ? JSON.parse(text) : {}
+    } catch (e) {
+      data = { message: text }
+    }
 
-  // Add apikey only if NOT using the proxy (proxy adds its own key)
-  if (!isProd) {
-    headers['apikey'] = import.meta.env.VITE_EVOLUTION_API_KEY || '277ab36ca8ab0744d6a80b912f38e1439712fba9ae00079fd5b877f2d34977b0';
+    if (!res.ok) {
+      throw new Error(data.message || data.error || `Error ${res.status}: ${res.statusText}`)
+    }
+    return data
+  } catch (error) {
+    console.error(`Evolution API Error [${path}]:`, error)
+    throw error
   }
-
-  const response = await fetch(url, {
-    method: options.method || 'GET',
-    headers,
-    body: options.method && options.method !== 'GET' ? options.body : undefined,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { message: text }; }
-    throw new Error(data.message || data.error || `HTTP ${response.status}`);
-  }
-  const text = await response.text();
-  try { return text ? JSON.parse(text) : {}; } catch (_) { return {}; }
 }
 
 export const evolution = {
-  // Instance management
+  // Instances
   listInstances: async () => request('/instance/fetchInstances'),
-
-  createInstance: async (instanceName) => {
-    return request('/instance/create', {
-      method: 'POST',
-      body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
-    });
-  },
+  
+  createInstance: async (instanceName) => 
+    request('/instance/create', { 
+      method: 'POST', 
+      body: JSON.stringify({ instanceName, token: 'wabiri-token', integrationCode: 'wabiri' }) 
+    }),
 
   deleteInstance: async (instanceName) =>
     request(`/instance/delete/${instanceName}`, { method: 'DELETE' }),
 
-  logoutInstance: async (instanceName) =>
-    request(`/instance/logout/${instanceName}`, { method: 'DELETE' }),
-
-  connectInstance: async (instanceName) =>
-    request(`/instance/connect/${instanceName}`),
-
   // Messaging
-  sendMessage: async (instanceName, number, text) => {
-    // Clean number (remove non-digits, but keep + for international)
-    const cleanNumber = number.replace(/[^\d]/g, '')
-    return request(`/message/sendText/${instanceName}`, {
+  sendMessage: async (instanceName, remoteJid, text) =>
+    request(`/message/sendText/${instanceName}`, { 
+      method: 'POST', 
+      body: JSON.stringify({
+        number: remoteJid,
+        text: text,
+        delay: 1200,
+        linkPreview: false 
+      }) 
+    }),
+
+  sendMedia: async (instanceName, remoteJid, base64, fileName, caption = '', mediaType = 'image') =>
+    request(`/message/sendMedia/${instanceName}`, {
       method: 'POST',
       body: JSON.stringify({
-        number: cleanNumber,
-        options: { delay: 1200, presence: 'composing', linkPreview: true },
-        textMessage: { text },
-      }),
-    })
-  },
+        number: remoteJid,
+        media: base64, 
+        mediatype: mediaType, 
+        fileName: fileName,
+        caption: caption,
+        delay: 1200
+      })
+    }),
 
+  // Chats
   findChats: async (instanceName) => 
     request(`/chat/findChats/${instanceName}`, { method: 'POST', body: JSON.stringify({}) }),
 

@@ -9,6 +9,10 @@ if ('serviceWorker' in navigator) {
   registerSW({ immediate: true })
 }
 
+// Apply theme as early as possible to prevent flashing
+const savedTheme = localStorage.getItem('wabiri-theme') || 'light'
+document.documentElement.setAttribute('data-theme', savedTheme)
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />

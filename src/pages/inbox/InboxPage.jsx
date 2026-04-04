@@ -38,6 +38,7 @@ export default function InboxPage() {
   const [instances, setInstances] = useState([])
   const [activeInstance, setActiveInstance] = useState(null)
   const [chats, setChats] = useState([])
+  const [savedContacts, setSavedContacts] = useState({}) // { phone: name }
   const [loadingChats, setLoadingChats] = useState(false)
   const [selectedChat, setSelectedChat] = useState(null)
   const [messages, setMessages] = useState([])
@@ -64,7 +65,22 @@ export default function InboxPage() {
   // Auto-scroll
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // 1. Load instances
+  // 1. Fetch saved contacts from Supabase (to show names instead of numbers)
+  const fetchLocalContacts = useCallback(async () => {
+    const { data } = await supabase.from('contacts').select('name, phone')
+    if (data) {
+      const map = {}
+      data.forEach(c => {
+         const num = c.phone.replace(/\D/g, '')
+         map[num] = c.name
+      })
+      setSavedContacts(map)
+    }
+  }, [])
+
+  useEffect(() => { fetchLocalContacts() }, [fetchLocalContacts])
+
+  // 2. Load instances
   const fetchInstances = useCallback(async () => {
     setLoadingChats(true)
     try {
@@ -86,7 +102,7 @@ export default function InboxPage() {
 
   useEffect(() => { fetchInstances() }, [fetchInstances])
 
-  // 2. Fetch & poll chats
+  // 3. Fetch & poll chats
   const fetchChats = useCallback(async (inst) => {
     if (!inst) return
     try {
@@ -100,13 +116,16 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (!activeInstance) return
-    fetchChats(activeInstance)
+    const isFirstLoad = chats.length === 0
+    if (isFirstLoad) setLoadingChats(true)
+    fetchChats(activeInstance).finally(() => { if (isFirstLoad) setLoadingChats(false) })
+    
     clearInterval(chatPollRef.current)
     chatPollRef.current = setInterval(() => fetchChats(activeInstance), 10000)
     return () => clearInterval(chatPollRef.current)
   }, [activeInstance, fetchChats])
 
-  // 3. Messages
+  // 4. Messages
   const fetchMessages = useCallback(async (inst, chat) => {
     if (!inst || !chat) return
     const jid = chat.remoteJid || chat.id
@@ -181,10 +200,7 @@ export default function InboxPage() {
     } catch (e) { alert('Microphone access denied') }
   }
 
-  const stopRecording = () => {
-    mediaRecorder?.stop()
-    setIsRecording(false)
-  }
+  const stopRecording = () => { mediaRecorder?.stop(); setIsRecording(false) }
 
   const handleSyncContacts = async () => {
     if (!activeInstance) return
@@ -192,17 +208,17 @@ export default function InboxPage() {
     try {
       const data = await evolution.syncContacts(activeInstance)
       const rawContacts = Array.isArray(data) ? data : (data?.data || [])
-      // IMPORTANT: Upsert into Supabase for real persistence
       const toInsert = rawContacts.map(c => ({
         user_id: user.id,
-        name: c.pushName || c.name || c.remoteJid?.split('@')[0] || 'Unknown',
-        phone: c.remoteJid?.split('@')[0] || '',
+        name: c.pushName || c.name || (c.remoteJid || '').split('@')[0] || 'Unknown',
+        phone: (c.remoteJid || '').split('@')[0] || '',
         last_active: 'just synced'
       })).filter(c => c.phone)
       
       const { error } = await supabase.from('contacts').upsert(toInsert, { onConflict: 'phone,user_id' })
       if (error) throw error
-      alert(`✅ Synced ${rawContacts.length} contacts to your Contacts list.`)
+      await fetchLocalContacts()
+      alert(`✅ Synced ${rawContacts.length} contacts. Names will now appear correctly.`)
     } catch (e) { alert('Sync error: ' + e.message) }
     finally { setSyncing(false) }
   }
@@ -213,18 +229,34 @@ export default function InboxPage() {
     const d = new Date(ts > 1e12 ? ts : ts * 1000)
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
-  const getChatName = (chat) => chat.pushName || chat.name || (chat.remoteJid || chat.id || '').split('@')[0] || 'Unknown'
-  const Avatar = ({ name, size = 48, connected = false }) => (
-    <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: connected ? 'var(--accent-glow)' : 'var(--surface2)', border: `2px solid ${connected ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 700, color: 'var(--accent)', fontFamily: 'Syne' }}>
-      {(name || '?').charAt(0).toUpperCase()}
+  
+  const getChatName = (chat) => {
+    const rawNum = (chat.remoteJid || chat.id || '').split('@')[0]
+    return savedContacts[rawNum] || chat.pushName || chat.name || rawNum || 'Unknown'
+  }
+
+  const Avatar = ({ name, url, size = 48, connected = false }) => (
+    <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: connected ? 'var(--accent-glow)' : 'var(--surface2)', border: `2px solid ${connected ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 700, color: 'var(--accent)', fontFamily: 'Syne' }}>
+      {url ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (name || '?').charAt(0).toUpperCase()}
     </div>
   )
 
   const EMOJIS = ['😀','😂','😍','😎','🔥','💯','🚀','✅','👍','🙏']
 
+  // Search logic: check both number and display name
+  const filteredChats = chats.filter(c => {
+    if (!search) return true
+    const name = getChatName(c).toLowerCase()
+    const num = (c.remoteJid || c.id || '').split('@')[0]
+    const s = search.toLowerCase()
+    return name.includes(s) || num.includes(s)
+  })
+
+  const currentInstance = instances.find(i => i.instanceName === activeInstance)
+  const isConnected = currentInstance?.connected
+
   return (
     <div style={{ display: 'flex', height: '100%', width: '100%', background: 'var(--surface2)' }}>
-      {/* Hidden File Input */}
       <input ref={fileInputRef} type="file" onChange={handleFileUpload} style={{ display: 'none' }} />
 
       {/* Left Pane */}
@@ -237,19 +269,33 @@ export default function InboxPage() {
           </div>
           {headerMenu && <DropdownMenu items={[{ icon: UserPlus, label: syncing ? 'Syncing...' : 'Sync Contacts', action: handleSyncContacts }, { icon: CheckAll, label: 'Mark All Read' }]} onClose={() => setHeaderMenu(false)} />}
         </div>
+        
         <div style={{ padding: '8px 12px' }}>
           <div style={{ position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search chats" style={{ width: '100%', padding: '8px 12px 8px 38px', borderRadius: 8, border: 'none', background: 'var(--surface2)', fontSize: 14, color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or number" style={{ width: '100%', padding: '8px 12px 8px 38px', borderRadius: 8, border: 'none', background: 'var(--surface2)', fontSize: 14, color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }} />
           </div>
         </div>
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {chats.filter(c => !search || getChatName(c).toLowerCase().includes(search.toLowerCase())).map(chat => (
+          {loadingChats && isConnected ? (
+             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+                <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 12px' }} />
+                <div style={{ fontSize: 13 }}>Connecting to WhatsApp...</div>
+             </div>
+          ) : !isConnected && activeInstance ? (
+             <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                Device "<strong>{activeInstance}</strong>" is offline.<br />
+                <a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600, display: 'block', marginTop: 8 }}>Reconnect Device →</a>
+             </div>
+          ) : filteredChats.length === 0 ? (
+             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>{search ? 'No matches found' : 'No recent chats'}</div>
+          ) : filteredChats.map(chat => (
             <div key={chat.remoteJid || chat.id} onClick={() => setSelectedChat(chat)} style={{ display: 'flex', cursor: 'pointer', alignItems: 'center', background: (selectedChat && (selectedChat.remoteJid || selectedChat.id) === (chat.remoteJid || chat.id)) ? 'var(--surface2)' : 'transparent' }}>
-              <div style={{ padding: '8px 12px' }}><Avatar name={getChatName(chat)} size={46} /></div>
+              <div style={{ padding: '8px 12px' }}><Avatar name={getChatName(chat)} url={chat.profilePicUrl} size={46} /></div>
               <div style={{ flex: 1, padding: '12px 12px 12px 0', borderBottom: '1px solid var(--border-strong)', minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 15, fontWeight: 600 }}>{getChatName(chat)}</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtTime(chat.conversationTimestamp)}</span></div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.lastMessage?.conversation || 'no preview'}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getChatName(chat)}</span><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtTime(chat.conversationTimestamp)}</span></div>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.lastMessage?.conversation || chat.lastMessage?.message?.conversation || '📎 Media'}</p>
               </div>
             </div>
           ))}
@@ -261,11 +307,12 @@ export default function InboxPage() {
         {selectedChat ? (
           <>
             <div style={{ height: 60, padding: '0 16px', background: 'var(--surface-header)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Avatar name={getChatName(selectedChat)} size={40} /><div><div style={{ fontSize: 16, fontWeight: 600 }}>{getChatName(selectedChat)}</div></div></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} size={40} /><div><div style={{ fontSize: 16, fontWeight: 600 }}>{getChatName(selectedChat)}</div><div style={{ fontSize: 11, color: 'var(--accent)' }}>online</div></div></div>
               <IconBtn icon={MoreVertical} onClick={() => setChatMenu(v => !v)} />
             </div>
             
             <div style={{ flex: 1, padding: '16px 6%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 1 }}>
+              {loadingMessages && <div style={{ textAlign: 'center', padding: 10 }}><Loader2 className="animate-spin" size={16} color="var(--accent)" /></div>}
               {messages.map(msg => (
                 <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '65%', padding: '6px 12px', borderRadius: 8, background: msg.key?.fromMe ? 'var(--bubble-out)' : 'var(--bubble-in)', boxShadow: 'var(--shadow)' }}>
                   <span style={{ fontSize: 14 }}>{msg.message?.conversation || msg.message?.extendedTextMessage?.text || '📎 Media'}</span>
@@ -274,7 +321,6 @@ export default function InboxPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input bar */}
             <div style={{ padding: '10px 16px', background: 'var(--surface-header)', borderTop: '1px solid var(--border)', zIndex: 2, position: 'relative' }}>
               {emojiOpen && (
                 <div style={{ position: 'absolute', bottom: 60, left: 16, background: 'var(--surface)', border: '1px solid var(--border)', padding: 10, borderRadius: 10, display: 'flex', gap: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
@@ -299,8 +345,11 @@ export default function InboxPage() {
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-            <Smartphone size={52} color="var(--accent)" style={{ marginBottom: 20 }} />
-            <p style={{ fontSize: 26, margin: 0 }}>WhatsApp Web</p>
+            <div style={{ width: 120, height: 120, borderRadius: '50%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+                <Smartphone size={52} color="var(--accent)" />
+            </div>
+            <p style={{ fontSize: 32, fontWeight: 700, margin: 0, color: 'var(--text)' }}>WhatsApp Web</p>
+            <p style={{ fontSize: 14, marginTop: 8 }}>Select a conversation from the left to start messaging.</p>
           </div>
         )}
       </div>

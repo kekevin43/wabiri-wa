@@ -19,12 +19,15 @@ const NAV = [
 export default function Sidebar() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
-  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light')
+  const [theme, setTheme] = useState(localStorage.getItem('wabiri-theme') || 'light')
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('wabiri-theme', theme)
+  }, [theme])
 
   const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setTheme(newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }
 
   const handleSignOut = async () => {

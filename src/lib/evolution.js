@@ -20,11 +20,12 @@ const request = async (path, options = {}) => {
     }
 
     if (!res.ok) {
-      throw new Error(data.message || data.error || `Error ${res.status}: ${res.statusText}`)
+      throw new Error(data.error || data.message || `API Error ${res.status}: ${res.statusText}`)
     }
     return data
   } catch (error) {
     console.error(`Evolution API Error [${path}]:`, error)
+    if (error.name === 'AbortError') throw new Error('Request timed out after 12 seconds.')
     throw error
   }
 }

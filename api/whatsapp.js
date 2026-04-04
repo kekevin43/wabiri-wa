@@ -21,8 +21,12 @@ export default async function handler(req, res) {
   console.log(`[proxy] ${req.method} ${fullUrl}`);
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
     const method = req.method;
-    const hasBody = method !== 'GET' && method !== 'DELETE' && req.body && Object.keys(req.body).length > 0;
+    const body = req.body;
+    const hasBody = method !== 'GET' && method !== 'HEAD' && body && Object.keys(body).length > 0;
 
     const response = await fetch(fullUrl, {
       method,
@@ -30,8 +34,11 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'apikey': EVOLUTION_API_KEY,
       },
-      body: hasBody ? JSON.stringify(req.body) : undefined,
+      body: hasBody ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const text = await response.text();
     let data;
@@ -40,9 +47,23 @@ export default async function handler(req, res) {
     } catch (e) {
       data = { message: text };
     }
-    return res.status(response.status).json(data);
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: data.message || data.error || `WhatsApp Engine error (${response.status})`,
+        url: fullUrl,
+        apiResponse: data
+      });
+    }
+
+    return res.status(200).json(data);
   } catch (error) {
     console.error('Proxy Error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to connect to WhatsApp Engine' });
+    const isTimeout = error.name === 'AbortError';
+    return res.status(isTimeout ? 504 : 500).json({ 
+      error: isTimeout ? 'WhatsApp Engine timed out (12s limit)' : `Connection failed: ${error.message}`,
+      hint: 'Check if your EVOLUTION_URL is correct and publicly reachable.',
+      attemptedUrl: fullUrl
+    });
   }
 }

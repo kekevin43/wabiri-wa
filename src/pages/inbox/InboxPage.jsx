@@ -70,10 +70,11 @@ export default function InboxPage() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   // 1. Load ALL instances (don't filter by status — let chat fetch determine usability)
-  useEffect(() => {
-    evolution.listInstances().then(res => {
+  const fetchInstances = useCallback(async () => {
+    setLoadingChats(true)
+    try {
+      const res = await evolution.listInstances()
       const raw = Array.isArray(res) ? res : (res?.instances || [])
-      // Unwrap nested .instance if present, normalise status
       const list = raw.map(i => {
         const info = i.instance || i
         const statusRaw = info.connectionStatus || info.state || info.status || ''
@@ -82,17 +83,26 @@ export default function InboxPage() {
           number: info.owner || info.ownerJid?.split('@')[0] || info.number || null,
           connected: ['open', 'CONNECTED', 'connected'].includes(statusRaw),
         }
-      }).filter(i => i.instanceName) // only need a name
+      }).filter(i => i.instanceName)
 
-      // Sort: connected first
       list.sort((a, b) => (b.connected ? 1 : 0) - (a.connected ? 1 : 0))
-
       setInstances(list)
-      if (list.length > 0) setActiveInstance(list[0].instanceName)
-    }).catch(console.error)
-  }, [])
+      
+      if (list.length > 0 && !activeInstance) {
+        setActiveInstance(list[0].instanceName)
+      }
+    } catch (e) {
+      console.error('Failed to load instances in Inbox', e)
+    } finally {
+      setLoadingChats(false)
+    }
+  }, [activeInstance])
 
-  // 2. Fetch & poll chats when instance changes
+  useEffect(() => {
+    fetchInstances()
+  }, [fetchInstances])
+
+  // 2. Fetch chats
   const fetchChats = useCallback(async (inst) => {
     if (!inst) return
     try {
@@ -101,15 +111,16 @@ export default function InboxPage() {
       list = list.filter(c => c.remoteJid || c.id)
       list.sort((a, b) => (b.conversationTimestamp || 0) - (a.conversationTimestamp || 0))
       setChats(list)
-    } catch (e) { console.error('Chat fetch error', e) }
+    } catch (e) { 
+      console.error('Chat fetch error', e)
+    }
   }, [])
 
   useEffect(() => {
     if (!activeInstance) return
-    setLoadingChats(true)
-    fetchChats(activeInstance).finally(() => setLoadingChats(false))
+    fetchChats(activeInstance)
     clearInterval(chatPollRef.current)
-    chatPollRef.current = setInterval(() => fetchChats(activeInstance), 8000)
+    chatPollRef.current = setInterval(() => fetchChats(activeInstance), 10000)
     return () => clearInterval(chatPollRef.current)
   }, [activeInstance, fetchChats])
 
@@ -277,7 +288,16 @@ export default function InboxPage() {
           position: 'relative',
         }}>
           <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>WhatsApp</span>
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button
+              onClick={fetchInstances}
+              disabled={loadingChats}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, borderRadius: 8, display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              <RefreshCw size={18} className={loadingChats ? 'animate-spin' : ''} />
+            </button>
             <button
               onClick={() => setHeaderMenu(v => !v)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, borderRadius: 8 }}
@@ -325,11 +345,14 @@ export default function InboxPage() {
 
         {/* Chat list */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {instances.length === 0 ? (
+          {instances.length === 0 && !loadingChats ? (
             <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)', fontSize: 14, lineHeight: 1.8 }}>
               <Smartphone size={32} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }} />
               No WhatsApp devices connected.<br />
-              <a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Connect a device →</a>
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Connect a device →</a>
+                <Button variant="ghost" size="sm" onClick={fetchInstances}><RefreshCw size={13} /> Retry Detection</Button>
+              </div>
             </div>
           ) : loadingChats && filteredChats.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>

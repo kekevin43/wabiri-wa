@@ -148,7 +148,8 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
 export default function InstancesPage() {
   const [instances, setInstances] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null) // null | { instanceName?: string }
+  const [refreshing, setRefreshing] = useState(false)
+  const [modal, setModal] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const pollRef = useRef(null)
   const navigate = useNavigate()
@@ -205,6 +206,12 @@ export default function InstancesPage() {
     return () => clearInterval(pollRef.current)
   }, [])
 
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchInstances(true)
+    setRefreshing(false)
+  }
+
   const handleDelete = async (name) => {
     if (!name) return
     if (!confirm(`Remove instance "${name}"?`)) return
@@ -253,7 +260,8 @@ export default function InstancesPage() {
                     key={inst.id}
                     inst={inst}
                     onDelete={() => handleDelete(inst.name)}
-                    onRefresh={() => fetchInstances(true)}
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
                     deleting={deletingId === inst.name}
                   />
                 ))}
@@ -333,7 +341,7 @@ export default function InstancesPage() {
 }
 
 // ── Instance Card ─────────────────────────────────────────────────────────────
-function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting }) {
+function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting, refreshing }) {
   const connected = inst.status === 'connected'
   const initial = (inst.name || '?').charAt(0).toUpperCase()
 
@@ -341,7 +349,6 @@ function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting }) {
     <Card style={{ position: 'relative', padding: '20px 22px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Avatar */}
           <div style={{
             width: 48, height: 48, borderRadius: 14, flexShrink: 0,
             background: connected ? 'var(--accent-glow)' : 'rgba(107,107,114,0.08)',
@@ -353,45 +360,33 @@ function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting }) {
             {initial}
           </div>
           <div>
-            {/* Instance name — prominently displayed */}
-            <div style={{ fontWeight: 700, fontFamily: 'Syne', fontSize: 16, marginBottom: 2 }}>
-              {inst.name}
-            </div>
-            {/* Phone number */}
+            <div style={{ fontWeight: 700, fontFamily: 'Syne', fontSize: 16, marginBottom: 2 }}>{inst.name}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'JetBrains Mono', display: 'flex', alignItems: 'center', gap: 5 }}>
-              {connected ? (
-                <><Wifi size={10} color="var(--accent)" /> {inst.number || 'Fetching number…'}</>
-              ) : (
-                <><WifiOff size={10} /> {inst.number || 'Not linked'}</>
-              )}
+              {connected
+                ? <><Wifi size={10} color="var(--accent)" /> {inst.number || 'Fetching number…'}</>
+                : <><WifiOff size={10} /> {inst.number || 'Not linked'}</>
+              }
             </div>
           </div>
         </div>
-
-        {/* Status badge */}
-        <Badge color={connected ? 'accent' : 'muted'}>
-          {connected ? '● Live' : '○ Off'}
-        </Badge>
+        <Badge color={connected ? 'accent' : 'muted'}>{connected ? '● Live' : '○ Off'}</Badge>
       </div>
 
-      {/* Actions */}
       <div style={{ display: 'flex', gap: 8 }}>
         {!connected && onConnect && (
-          <Button size="sm" onClick={onConnect}>
-            <QrCode size={13} /> Reconnect
-          </Button>
+          <Button size="sm" onClick={onConnect}><QrCode size={13} /> Reconnect</Button>
         )}
         {connected && onRefresh && (
-          <Button size="sm" variant="ghost" onClick={onRefresh}>
-            <RefreshCw size={13} /> Refresh
+          <Button size="sm" variant="ghost" onClick={onRefresh} disabled={refreshing}>
+            {refreshing
+              ? <Loader2 className="animate-spin" size={13} />
+              : <RefreshCw size={13} />
+            }
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
         )}
-        <Button
-          size="sm" variant="ghost"
-          onClick={onDelete}
-          disabled={deleting}
-          style={{ marginLeft: 'auto', color: 'var(--danger)' }}
-        >
+        <Button size="sm" variant="ghost" onClick={onDelete} disabled={deleting}
+          style={{ marginLeft: 'auto', color: 'var(--danger)' }}>
           {deleting ? <Loader2 className="animate-spin" size={13} /> : <Trash2 size={13} />}
           Remove
         </Button>

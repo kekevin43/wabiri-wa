@@ -17,7 +17,6 @@ function DropdownMenu({ items, onClose }) {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
-
   return (
     <div ref={ref} style={{ position: 'absolute', top: 32, right: 0, zIndex: 200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 0', minWidth: 200, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
       {items.map((item, i) => item === 'divider' ? (
@@ -34,7 +33,7 @@ function DropdownMenu({ items, onClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function InboxPage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [instances, setInstances] = useState([])
   const [activeInstance, setActiveInstance] = useState(null)
   const [chats, setChats] = useState([])
@@ -63,7 +62,7 @@ export default function InboxPage() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // 1. Fetch saved contacts
+  // 1. Fetch local Supabase contacts
   const fetchLocalContacts = useCallback(async () => {
     const { data } = await supabase.from('contacts').select('name, phone')
     if (data) {
@@ -75,7 +74,7 @@ export default function InboxPage() {
 
   useEffect(() => { fetchLocalContacts() }, [fetchLocalContacts])
 
-  // 2. Load instances
+  // 2. Load instances & Sync Owner Profile
   const fetchInstances = useCallback(async () => {
     setLoadingChats(true)
     try {
@@ -91,13 +90,45 @@ export default function InboxPage() {
         }
       }).filter(i => i.instanceName)
       setInstances(list)
-      if (list.length > 0 && !activeInstance) setActiveInstance(list[0].instanceName)
+      
+      const primary = list.find(i => i.connected)
+      if (primary) {
+        if (!activeInstance) setActiveInstance(primary.instanceName)
+        // Automatic Owner Photo Sync
+        if (primary.number && !user?.user_metadata?.avatar_url) {
+           try {
+              const picRes = await evolution.fetchProfilePicture(primary.instanceName, primary.number)
+              const picUrl = picRes?.profilePictureUrl || picRes?.url
+              if (picUrl) {
+                await supabase.auth.updateUser({ data: { avatar_url: picUrl } })
+                refreshUser()
+              }
+           } catch (_) {}
+        }
+      }
     } finally { setLoadingChats(false) }
-  }, [activeInstance])
+  }, [activeInstance, user, refreshUser])
 
   useEffect(() => { fetchInstances() }, [fetchInstances])
 
-  // 3. Fetch & poll chats
+  // 3. Sync names from chat list as they appear
+  const updateContactNames = useCallback(async (list) => {
+    const toUpsert = []
+    list.forEach(chat => {
+      const jid = chat.remoteJid || chat.id
+      const num = jid.split('@')[0]
+      const name = chat.pushName || chat.name
+      if (name && !savedContacts[num]) {
+        toUpsert.push({ user_id: user.id, name, phone: num })
+      }
+    })
+    if (toUpsert.length > 0) {
+      await supabase.from('contacts').upsert(toUpsert, { onConflict: 'phone,user_id' })
+      fetchLocalContacts()
+    }
+  }, [user, savedContacts, fetchLocalContacts])
+
+  // 4. Fetch & poll chats
   const fetchChats = useCallback(async (inst) => {
     if (!inst) return
     try {
@@ -107,7 +138,10 @@ export default function InboxPage() {
       list.sort((a, b) => (b.conversationTimestamp || 0) - (a.conversationTimestamp || 0))
       setChats(list)
       
-      // Auto-fetch missing profile pics
+      // Update missing names from chat data
+      updateContactNames(list)
+
+      // Fetch Profile Pics
       list.forEach(async (chat) => {
         const jid = chat.remoteJid || chat.id
         if (!profilePics[jid] && !chat.profilePicUrl) {
@@ -120,19 +154,18 @@ export default function InboxPage() {
         }
       })
     } catch (e) { console.error('Chat error', e) }
-  }, [profilePics])
+  }, [profilePics, updateContactNames])
 
   useEffect(() => {
     if (!activeInstance) return
     const isFirst = chats.length === 0
     if (isFirst) setLoadingChats(true)
     fetchChats(activeInstance).finally(() => { if (isFirst) setLoadingChats(false) })
-    clearInterval(chatPollRef.current)
-    chatPollRef.current = setInterval(() => fetchChats(activeInstance), 10000)
+    clearInterval(chatPollRef.current); chatPollRef.current = setInterval(() => fetchChats(activeInstance), 10000)
     return () => clearInterval(chatPollRef.current)
   }, [activeInstance, fetchChats])
 
-  // 4. Messages
+  // 5. Messages
   const fetchMessages = useCallback(async (inst, chat) => {
     if (!inst || !chat) return
     const jid = chat.remoteJid || chat.id
@@ -146,18 +179,15 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (!activeInstance || !selectedChat) { setMessages([]); return }
-    setLoadingMessages(true)
-    fetchMessages(activeInstance, selectedChat).finally(() => setLoadingMessages(false))
-    clearInterval(msgPollRef.current)
-    msgPollRef.current = setInterval(() => fetchMessages(activeInstance, selectedChat), 4000)
+    setLoadingMessages(true); fetchMessages(activeInstance, selectedChat).finally(() => setLoadingMessages(false))
+    clearInterval(msgPollRef.current); msgPollRef.current = setInterval(() => fetchMessages(activeInstance, selectedChat), 4000)
     return () => clearInterval(msgPollRef.current)
   }, [selectedChat, activeInstance, fetchMessages])
 
   const handleSend = async (e) => {
     e?.preventDefault()
     if (!messageText.trim() || !activeInstance || !selectedChat || sending) return
-    const jid = selectedChat.remoteJid || selectedChat.id
-    setSending(true)
+    const jid = selectedChat.remoteJid || selectedChat.id; setSending(true)
     const text = messageText; setMessageText('')
     try { await evolution.sendMessage(activeInstance, jid, text) }
     catch (err) { alert('Failed: ' + err.message); setMessageText(text) }
@@ -165,37 +195,29 @@ export default function InboxPage() {
   }
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file || !activeInstance || !selectedChat) return
-    const jid = selectedChat.remoteJid || selectedChat.id
-    setSending(true)
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
+    const file = e.target.files?.[0]; if (!file || !activeInstance || !selectedChat) return
+    const jid = selectedChat.remoteJid || selectedChat.id; setSending(true)
+    const reader = new FileReader(); reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
       try { await evolution.sendMedia(activeInstance, jid, base64, file.name, '', file.type.split('/')[0]) }
       catch (err) { alert('Upload failed: ' + err.message) }
       finally { setSending(false) }
-    }
-    reader.readAsDataURL(file)
+    }; reader.readAsDataURL(file)
   }
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
-      const chunks = []
+      const recorder = new MediaRecorder(stream); const chunks = []
       recorder.ondataavailable = e => chunks.push(e.data)
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'audio/mp3' })
-        const reader = new FileReader()
+        const blob = new Blob(chunks, { type: 'audio/mp3' }); const reader = new FileReader()
         reader.onload = async () => {
-          const base64 = reader.result.split(',')[1]
-          const jid = selectedChat.remoteJid || selectedChat.id
+          const base64 = reader.result.split(',')[1]; const jid = selectedChat.remoteJid || selectedChat.id
           try { await evolution.sendMedia(activeInstance, jid, base64, 'voice-note.mp3', '', 'audio') }
           catch (e) { alert('Failed: ' + e.message) }
           finally { setSending(false) }
-        }
-        reader.readAsDataURL(blob)
+        }; reader.readAsDataURL(blob)
       }
       recorder.start(); setMediaRecorder(recorder); setIsRecording(true)
     } catch (e) { alert('Mic access denied') }
@@ -204,8 +226,7 @@ export default function InboxPage() {
   const stopRecording = () => { mediaRecorder?.stop(); setIsRecording(false) }
 
   const handleSyncContacts = async () => {
-    if (!activeInstance) return
-    setSyncing(true)
+    if (!activeInstance) return; setSyncing(true)
     try {
       const data = await evolution.syncContacts(activeInstance)
       const raw = Array.isArray(data) ? data : (data?.data || [])
@@ -216,15 +237,13 @@ export default function InboxPage() {
         last_active: 'just synced'
       })).filter(c => c.phone)
       await supabase.from('contacts').upsert(toInsert, { onConflict: 'phone,user_id' })
-      await fetchLocalContacts()
-      alert(`✅ Synced ${raw.length} contacts.`)
+      await fetchLocalContacts(); alert(`✅ Synced ${raw.length} contacts from device.`)
     } catch (e) { alert('Sync error: ' + e.message) }
     finally { setSyncing(false) }
   }
 
   const fmtTime = (ts) => {
-    if (!ts) return ''
-    const d = new Date(ts > 1e12 ? ts : ts * 1000)
+    if (!ts) return ''; const d = new Date(ts > 1e12 ? ts : ts * 1000)
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
   
@@ -324,11 +343,8 @@ export default function InboxPage() {
     </div>
   )
 }
-
 function IconBtn({ icon: Icon, onClick, spinning }) {
   return (
-    <button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, borderRadius: 8, display: 'flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-      <Icon size={20} className={spinning ? 'animate-spin' : ''} />
-    </button>
+    <button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, borderRadius: 8, display: 'flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'none'}><Icon size={20} className={spinning ? 'animate-spin' : ''} /></button>
   )
 }

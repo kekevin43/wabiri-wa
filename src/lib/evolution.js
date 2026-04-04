@@ -92,4 +92,10 @@ export const evolution = {
 
   getStatus: async (instanceName) =>
     request(`/instance/connectionState/${instanceName}`),
+
+  fetchProfilePicture: async (instanceName, remoteJid) =>
+    request(`/chat/fetchProfilePictureUrl/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify({ number: remoteJid }),
+    }),
 }

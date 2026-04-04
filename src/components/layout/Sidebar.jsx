@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Smartphone, Megaphone,
@@ -17,7 +17,7 @@ const NAV = [
 ]
 
 export default function Sidebar() {
-  const { signOut } = useAuth()
+  const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [theme, setTheme] = useState(localStorage.getItem('wabiri-theme') || 'light')
 
@@ -34,6 +34,9 @@ export default function Sidebar() {
     await signOut()
     navigate('/auth')
   }
+
+  const initial = (user?.user_metadata?.full_name || user?.email || '?').charAt(0).toUpperCase()
+  const avatar = user?.user_metadata?.avatar_url
 
   return (
     <aside style={{
@@ -114,9 +117,17 @@ export default function Sidebar() {
           <LogOut size={22} />
         </div>
         
-        {/* Profile Avatar placeholder */}
-        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}>
-           ME
+        {/* Profile Avatar */}
+        <div 
+          onClick={() => navigate('/settings')}
+          style={{ 
+            width: 32, height: 32, borderRadius: '50%', overflow: 'hidden',
+            background: 'var(--accent)', color: '#fff', display: 'flex', 
+            alignItems: 'center', justifyContent: 'center', fontSize: 13, 
+            fontWeight: 700, cursor: 'pointer', marginTop: 8 
+          }}
+        >
+           {avatar ? <img src={avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
         </div>
       </div>
     </aside>

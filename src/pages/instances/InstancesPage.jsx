@@ -39,11 +39,12 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
           }
           throw err
         }
-        // Give the WebSocket a tiny moment to initialize
-        await new Promise(r => setTimeout(r, 1000))
+        // Give the WebSocket a moment to initialize before fetching QR
+        await new Promise(r => setTimeout(r, 2500))
         data = await evolution.getQrCode(instName)
       }
-      const base64 = data?.qrcode?.base64 || data?.base64
+      // Evolution API v2 returns QR in several shapes — handle all of them
+      const base64 = data?.qrcode?.base64 || data?.base64 || data?.qrcode?.code || data?.code
       if (base64) {
         setQrCode(base64)
         setStep('qr')

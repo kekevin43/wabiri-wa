@@ -37,7 +37,7 @@ export const evolution = {
   createInstance: async (instanceName) => 
     request('/instance/create', { 
       method: 'POST', 
-      body: JSON.stringify({ instanceName, token: 'wabiri-token', integrationCode: 'wabiri' }) 
+      body: JSON.stringify({ instanceName, qrcode: true }) 
     }),
 
   deleteInstance: async (instanceName) =>

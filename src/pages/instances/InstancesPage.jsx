@@ -26,7 +26,7 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
     try {
       let data
       if (isReconnect) {
-        data = await evolution.connectInstance(instName)
+        data = await evolution.getQrCode(instName)
       } else {
         try {
           data = await evolution.createInstance(instName)

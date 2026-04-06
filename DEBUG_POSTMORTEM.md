@@ -42,4 +42,4 @@ This was a multi-tiered backend Docker conflict:
 ### Core Architecture Takeaways
 1.  **Evolution API v2** is strictly reliant on database and cache state. If its Redis connection drops, it will *appear* totally fine on the frontend but will immediately fail WhatsApp Web socket handshakes.
 2.  **Serverless Proxies** mask backend failures. A Vercel `fetch failed` almost universally implies your Cloudflare tunnel crashed or the Docker container behind the tunnel couldn't boot.
-3.  **Supabase** requires careful tracking. Always mirror its table schema requirements precisely with what the frontend expects.
+3.  **Supabase & Prisma Desyncs**: Turning on `DATABASE_ENABLED=true` inside the Evolution API docker forces the Baileys socket to rely on Prisma updates. If an instance deletion desyncs `Instance` tables in Postgres, Baileys will subsequently throw Uncaught Promise Rejections (`P2025: No record found to delete`) during new instance connections, causing instant socket drops. Switching the backend to `DATABASE_ENABLED=false` forces native filesystem/SQLite storage, guaranteeing crash-free QR scanning.

@@ -46,8 +46,6 @@ export const evolution = {
       method: 'POST', 
       body: JSON.stringify({ 
         instanceName, 
-        token: 'wabiri-token', 
-        integrationCode: 'wabiri',
         qrcode: true, 
         integration: 'WHATSAPP-BAILEYS' 
       }) 

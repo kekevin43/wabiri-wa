@@ -141,20 +141,47 @@ export default function InboxPage() {
       const data = await evolution.findChats(inst)
       let list = Array.isArray(data) ? data : (data?.data || data?.chats || [])
       list = list.filter(c => c.remoteJid || c.id)
+
+      // Map names from Supabase locally if pushName is missing
+      list = list.map(c => {
+         const num = (c.remoteJid || c.id).split('@')[0]
+         return {
+            ...c,
+            name: c.pushName || c.name || savedContacts[num] || num
+         }
+      })
+
       list.sort((a, b) => (b.conversationTimestamp || 0) - (a.conversationTimestamp || 0))
       setChats(list)
       updateContactNames(list)
-      list.forEach(async (chat) => {
+      
+      // Background Profile Sync
+      list.slice(0, 20).forEach(async (chat, i) => {
         const jid = chat.remoteJid || chat.id
         if (!profilePics[jid] && !chat.profilePicUrl) {
           try {
-            const res = await evolution.fetchProfilePicture(inst, jid.split('@')[0])
-            if (res?.profilePictureUrl) setProfilePics(prev => ({ ...prev, [jid]: res.profilePictureUrl }))
+            // Tiny staggered delay to prevent rate-limiting the Cloudflare tunnel
+            await new Promise(r => setTimeout(r, i * 400))
+            const num = jid.split('@')[0]
+            const picRes = await evolution.fetchProfilePicture(inst, num)
+            const url = picRes?.profilePictureUrl || picRes?.url
+            if (url) setProfilePics(prev => ({ ...prev, [jid]: url }))
           } catch (_) {}
         }
       })
-    } catch (e) { console.error('Chat error', e) }
-  }, [profilePics, updateContactNames])
+    } finally { setLoadingChats(false) }
+  }, [activeInstance, profilePics, savedContacts, updateContactNames])
+
+  const handleDeepSync = async () => {
+    if (!activeInstance) return
+    setSyncing(true)
+    try {
+      await evolution.syncContacts(activeInstance)
+      await new Promise(r => setTimeout(r, 2000)) // Wait for sync start
+      await fetchChats(activeInstance)
+      await fetchLocalContacts()
+    } finally { setSyncing(false) }
+  }
 
   useEffect(() => {
     if (!activeInstance) return

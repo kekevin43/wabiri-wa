@@ -20,16 +20,26 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
     return () => clearInterval(pollRef.current)
   }, [])
 
-  const generateQR = async (instName) => {
+  const generateQR = async (instName, retry = true) => {
     setLoading(true)
     setError(null)
     try {
       let data
       if (isReconnect) {
-        // For existing disconnected instance, just fetch the connect QR
         data = await evolution.connectInstance(instName)
       } else {
-        data = await evolution.createInstance(instName)
+        try {
+          data = await evolution.createInstance(instName)
+        } catch (err) {
+          // "Bad Request" usually means instance exists but is probably a ghost
+          if (err.message.includes('Bad Request') && retry) {
+            console.log('Duplicate name detected, cleaning up ghost instance...')
+            try { await evolution.deleteInstance(instName) } catch (_) {}
+            // Second attempt
+            return generateQR(instName, false)
+          }
+          throw err
+        }
       }
       const base64 = data?.qrcode?.base64 || data?.base64
       if (base64) {
@@ -40,10 +50,14 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
         throw new Error('No QR code returned from server')
       }
     } catch (err) {
-      setError(err.message)
+      const msg = err.message.includes('Bad Request') 
+        ? `The name "${instName}" is already taken. Please use a different name (e.g. "${instName}_2").`
+        : err.message
+      setError(msg)
       setStep('form')
     } finally {
-      setLoading(false)
+      if (!retry) setLoading(false)
+      else if (step !== 'qr') setLoading(false)
     }
   }
 

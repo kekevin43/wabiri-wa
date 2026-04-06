@@ -29,7 +29,7 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
         data = await evolution.getQrCode(instName)
       } else {
         try {
-          data = await evolution.createInstance(instName)
+          await evolution.createInstance(instName)
         } catch (err) {
           const isConflict = err.message.includes('Bad Request') || err.message.toLowerCase().includes('already exists')
           if (isConflict && retry) {
@@ -39,6 +39,9 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
           }
           throw err
         }
+        // Give the WebSocket a tiny moment to initialize
+        await new Promise(r => setTimeout(r, 1000))
+        data = await evolution.getQrCode(instName)
       }
       const base64 = data?.qrcode?.base64 || data?.base64
       if (base64) {
@@ -69,13 +72,19 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
       try {
         const status = await evolution.getStatus(instName)
         const state = status?.instance?.state || status?.state
-        if (state === 'open') {
+        if (state === 'open' || state === 'connected') {
           clearInterval(pollRef.current)
           setStep('connected')
           onSuccess?.()
+        } else if (step === 'qr') {
+          // Keep the QR code fresh on the screen to prevent 'Couldn't link device' expiration errors
+          try {
+            const qrData = await evolution.getQrCode(instName)
+            if (qrData?.base64) setQrCode(qrData.base64)
+          } catch (_) {}
         }
       } catch (_) { /* silent */ }
-    }, 3000)
+    }, 5000)
   }
 
   return (

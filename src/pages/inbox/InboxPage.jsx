@@ -4,10 +4,19 @@ import {
   Video, Loader2, Smartphone, Send as SendIcon, X, RefreshCw,
   UserPlus, CheckCheck as CheckAll, Settings, Archive, Trash2,
   BellOff, Star, Copy, Forward, StopCircle, FileText, Image as ImageIcon,
+  Check
 } from 'lucide-react'
 import { evolution } from '../../lib/evolution'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/AuthContext'
+
+// ── Status Component ─────────────────────────────────────────────────────────
+function MessageStatus({ status }) {
+  if (status === 3 || status === 4) return <CheckCheck size={14} color="#34b7f1" /> // Read (Blue)
+  if (status === 2) return <CheckCheck size={14} color="var(--muted)" /> // Delivered (Gray)
+  if (status === 1) return <Check size={14} color="var(--muted)" /> // Sent (Single Gray)
+  return <Check size={14} style={{ opacity: 0.5 }} /> // Pending
+}
 
 // ── Dropdown Menu ─────────────────────────────────────────────────────────────
 function DropdownMenu({ items, onClose }) {
@@ -91,7 +100,6 @@ export default function InboxPage() {
       const primary = list.find(i => i.connected)
       if (primary) {
         if (!activeInstance) setActiveInstance(primary.instanceName)
-        // Auto Sync Owner Pic
         if (primary.number && !user?.user_metadata?.avatar_url) {
            try {
               const picRes = await evolution.fetchProfilePicture(primary.instanceName, primary.number)
@@ -135,18 +143,13 @@ export default function InboxPage() {
       list = list.filter(c => c.remoteJid || c.id)
       list.sort((a, b) => (b.conversationTimestamp || 0) - (a.conversationTimestamp || 0))
       setChats(list)
-      
       updateContactNames(list)
-
-      // Profile Pics
       list.forEach(async (chat) => {
         const jid = chat.remoteJid || chat.id
         if (!profilePics[jid] && !chat.profilePicUrl) {
           try {
             const res = await evolution.fetchProfilePicture(inst, jid.split('@')[0])
-            if (res?.profilePictureUrl) {
-              setProfilePics(prev => ({ ...prev, [jid]: res.profilePictureUrl }))
-            }
+            if (res?.profilePictureUrl) setProfilePics(prev => ({ ...prev, [jid]: res.profilePictureUrl }))
           } catch (_) {}
         }
       })
@@ -191,23 +194,6 @@ export default function InboxPage() {
     finally { setSending(false) }
   }
 
-  const handleSyncContacts = async () => {
-    if (!activeInstance) return; setSyncing(true)
-    try {
-      const data = await evolution.syncContacts(activeInstance)
-      const raw = Array.isArray(data) ? data : (data?.data || [])
-      const toInsert = raw.map(c => ({
-        user_id: user.id,
-        name: c.pushName || c.name || (c.remoteJid || '').split('@')[0] || 'Unknown',
-        phone: (c.remoteJid || '').split('@')[0] || '',
-        last_active: 'just synced'
-      })).filter(c => c.phone)
-      await supabase.from('contacts').upsert(toInsert, { onConflict: 'phone,user_id' })
-      await fetchLocalContacts(); alert(`✅ Synced ${raw.length} contacts.`)
-    } catch (e) { alert('Sync error: ' + e.message) }
-    finally { setSyncing(false) }
-  }
-
   const fmtTime = (ts) => {
     if (!ts) return ''; const d = new Date(ts > 1e12 ? ts : ts * 1000)
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -249,7 +235,6 @@ export default function InboxPage() {
             <IconBtn icon={RefreshCw} onClick={fetchInstances} spinning={loadingChats} />
             <IconBtn icon={MoreVertical} onClick={() => setHeaderMenu(v => !v)} />
           </div>
-          {headerMenu && <DropdownMenu items={[{ icon: UserPlus, label: syncing ? 'Syncing...' : 'Sync Contacts', action: handleSyncContacts }]} onClose={() => setHeaderMenu(false)} />}
         </div>
         <div style={{ padding: '8px 12px' }}>
           <div style={{ position: 'relative' }}>
@@ -286,7 +271,13 @@ export default function InboxPage() {
             <div style={{ flex: 1, padding: '16px 6%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {loadingMessages && <div style={{ textAlign: 'center', padding: 10 }}><Loader2 className="animate-spin" size={16} color="var(--accent)" /></div>}
               {messages.map(msg => (
-                <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '75%', padding: '8px 12px', borderRadius: 10, background: msg.key?.fromMe ? 'var(--bubble-out)' : 'var(--bubble-in)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', fontSize: 14 }}>{msg.message?.conversation || '📎 Media'}</div>
+                <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '75%', padding: '8px 12px', borderRadius: 10, background: msg.key?.fromMe ? 'var(--bubble-out)' : 'var(--bubble-in)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', fontSize: 14, position: 'relative' }}>
+                  {msg.message?.conversation || '📎 Media'}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
+                    <span>{fmtTime(msg.messageTimestamp)}</span>
+                    {msg.key?.fromMe && <MessageStatus status={msg.status} />}
+                  </div>
+                </div>
               ))}
               <div ref={messagesEndRef} />
             </div>

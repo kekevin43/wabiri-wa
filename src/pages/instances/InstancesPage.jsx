@@ -50,10 +50,8 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
         throw new Error('No QR code returned from server')
       }
     } catch (err) {
-      const msg = err.message.includes('Bad Request') 
-        ? `The name "${instName}" is already taken. Please use a different name (e.g. "${instName}_2").`
-        : err.message
-      setError(msg)
+      console.error('QR Gen Error:', err)
+      setError(err.message)
       setStep('form')
     } finally {
       if (!retry) setLoading(false)

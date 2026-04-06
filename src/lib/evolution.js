@@ -20,7 +20,7 @@ const request = async (path, options = {}) => {
     }
 
     if (!res.ok) {
-      throw new Error(data.error || data.message || `API Error ${res.status}: ${res.statusText}`)
+      throw new Error(typeof data === 'object' ? JSON.stringify(data) : text || `API Error ${res.status}`)
     }
     return data
   } catch (error) {

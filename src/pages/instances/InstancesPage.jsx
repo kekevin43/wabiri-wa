@@ -39,10 +39,29 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
           }
           throw err
         }
-        // Give the WebSocket a moment to initialize before fetching QR
-        await new Promise(r => setTimeout(r, 2500))
+
+        // --- THE FIX: Wait for DB Persistence ---
+        // 1. Initial breathing room for the server to spin up the container
+        await new Promise(r => setTimeout(r, 3000))
+        
+        // 2. Poll until the instance is actually visible in the DB (Prevents Prisma P2025)
+        let verified = false
+        for (let i = 0; i < 10; i++) { // Max 10 attempts (10 seconds)
+           try {
+              const check = await evolution.getStatus(instName)
+              if (check && (check.instance || check.state)) { 
+                 verified = true; break 
+              }
+           } catch (_) {}
+           await new Promise(r => setTimeout(r, 1000))
+        }
+
+        if (!verified) throw new Error('Server limit reached or database is taking too long to respond. Please try again in a moment.')
+        
+        // 3. Now it is safe to request the QR code
         data = await evolution.getQrCode(instName)
       }
+
       // Evolution API v2 returns QR in several shapes — handle all of them
       const base64 = data?.qrcode?.base64 || data?.base64 || data?.qrcode?.code || data?.code
       if (base64) {
@@ -50,7 +69,7 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
         setStep('qr')
         startPolling(instName)
       } else {
-        throw new Error('No QR code returned from server')
+        throw new Error('QR code generation timed out. Please refresh and try again.')
       }
     } catch (err) {
       console.error('QR Gen Error:', err)

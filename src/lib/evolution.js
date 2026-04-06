@@ -44,7 +44,13 @@ export const evolution = {
   createInstance: async (instanceName) => 
     request('/instance/create', { 
       method: 'POST', 
-      body: JSON.stringify({ instanceName, qrcode: false, integration: 'WHATSAPP-BAILEYS' }) 
+      body: JSON.stringify({ 
+        instanceName, 
+        token: 'wabiri-token', 
+        integrationCode: 'wabiri',
+        qrcode: true, 
+        integration: 'WHATSAPP-BAILEYS' 
+      }) 
     }),
 
   deleteInstance: async (instanceName) =>

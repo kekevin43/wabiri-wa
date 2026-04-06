@@ -29,50 +29,30 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
         data = await evolution.getQrCode(instName)
       } else {
         try {
-          await evolution.createInstance(instName)
+          data = await evolution.createInstance(instName)
         } catch (err) {
           const isConflict = err.message.includes('Bad Request') || err.message.toLowerCase().includes('already exists')
           if (isConflict && retry) {
-            console.log('Duplicate name detected, cleaning up ghost instance...')
+            console.log('Cleaning ghost instance...')
             try { await evolution.deleteInstance(instName) } catch (_) {}
+            await new Promise(r => setTimeout(r, 3000)) // Cool-down for server DB clearing
             return generateQR(instName, false)
           }
           throw err
         }
-
-        // --- THE FIX: Wait for DB Persistence ---
-        // 1. Initial breathing room for the server to spin up the container
-        await new Promise(r => setTimeout(r, 3000))
-        
-        // 2. Poll until the instance is actually visible in the DB (Prevents Prisma P2025)
-        let verified = false
-        for (let i = 0; i < 10; i++) { // Max 10 attempts (10 seconds)
-           try {
-              const check = await evolution.getStatus(instName)
-              if (check && (check.instance || check.state)) { 
-                 verified = true; break 
-              }
-           } catch (_) {}
-           await new Promise(r => setTimeout(r, 1000))
-        }
-
-        if (!verified) throw new Error('Server limit reached or database is taking too long to respond. Please try again in a moment.')
-        
-        // 3. Now it is safe to request the QR code
-        data = await evolution.getQrCode(instName)
       }
 
-      // Evolution API v2 returns QR in several shapes — handle all of them
+      // Handle direct QR data from creation or separate connect
       const base64 = data?.qrcode?.base64 || data?.base64 || data?.qrcode?.code || data?.code
       if (base64) {
         setQrCode(base64)
         setStep('qr')
         startPolling(instName)
       } else {
-        throw new Error('QR code generation timed out. Please refresh and try again.')
+        throw new Error('Connection timed out. Please try a different name (e.g. name2).')
       }
     } catch (err) {
-      console.error('QR Gen Error:', err)
+      console.error('Handshake Error:', err)
       setError(err.message)
       setStep('form')
     } finally {

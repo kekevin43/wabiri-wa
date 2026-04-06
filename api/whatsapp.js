@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
     const method = req.method;
     const body = req.body;

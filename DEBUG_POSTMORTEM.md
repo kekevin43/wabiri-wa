@@ -37,9 +37,18 @@ This was a multi-tiered backend Docker conflict:
 2.  **The Supabase IPv6 Trap**: Attempting to fix the Redis clash by putting Evolution API on an internal bridge network incidentally severed its IPv6 connectivity. Supabase mandates IPv6 for port `5432` connections via its `db.*.supabase.co` domains. This immediately crash-looped the entire Evolution API due to a Prisma database initialization failure (`P1001: Can't reach database`).
 **The Fix**: Removed the redundant Docker Redis container completely from `docker-compose.yml`. Restored `network_mode: host` to the Evolution API (restoring its IPv6 database connectivity), and pointed its `CACHE_REDIS_URI` directly at your laptop's natively running local `redis-server`.
 
+## 6. The "Sync Latency" Race Condition
+**The Error**: `couldn't link device, try again later` (on the phone)
+**The Context**: Scanning the QR code starts the handshake, but the link fails immediately.
+**Why it failed**: When you scan, the "Baileys" engine inside Evolution API immediately tries to **update** the instance status in the database. When the database is a remote Supabase instance over the internet, a "Race Condition" occurs: the update request (heartbeat) arrives at Supabase before the original "create instance" record has even finished being flushed over the network. Prisma then throws `P2025: No record found to update`, which crashes the server's handshake process and disconnects the phone.
+**The Fix**: Switched the `DATABASE_PROVIDER` inside the backend from `PostgreSQL` to `SQLite`. 
+1. `DATABASE_PROVIDER=sqlite`
+2. `DATABASE_URL=file:../data/database.sqlite`
+This stores ephemeral WhatsApp instance states locally on your machine with near-zero latency, ensuring the handshake completes every time without network-related Prisma crashes.
+
 ---
 
 ### Core Architecture Takeaways
 1.  **Evolution API v2** is strictly reliant on database and cache state. If its Redis connection drops, it will *appear* totally fine on the frontend but will immediately fail WhatsApp Web socket handshakes.
 2.  **Serverless Proxies** mask backend failures. A Vercel `fetch failed` almost universally implies your Cloudflare tunnel crashed or the Docker container behind the tunnel couldn't boot.
-3.  **Supabase & Prisma Desyncs**: Turning on `DATABASE_ENABLED=true` inside the Evolution API docker forces the Baileys socket to rely on Prisma updates. If an instance deletion desyncs `Instance` tables in Postgres, Baileys will subsequently throw Uncaught Promise Rejections (`P2025: No record found to delete`) during new instance connections, causing instant socket drops. Switching the backend to `DATABASE_ENABLED=false` forces native filesystem/SQLite storage, guaranteeing crash-free QR scanning.
+3.  **Local-First for States**: Ephemeral connection states (Instances) should **always** remain local-first (SQLite or Redis). Forcing these fast-moving heartbeats to a remote cloud DB like Supabase creates network-bound race conditions (P2025) that break the sensitive WhatsApp handshake. Keep Supabase for your core business data (Contacts, Campaigns) and use SQLite for the internal WhatsApp engine logic.

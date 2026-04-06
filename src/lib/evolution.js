@@ -20,7 +20,14 @@ const request = async (path, options = {}) => {
     }
 
     if (!res.ok) {
-      throw new Error(typeof data === 'object' ? JSON.stringify(data) : text || `API Error ${res.status}`)
+      let errMsg = `API Error ${res.status}`
+      if (typeof data === 'object') {
+        const nest = data.response?.message || data.message
+        errMsg = Array.isArray(nest) ? nest.join(', ') : (nest || data.error || errMsg)
+      } else if (text) {
+        errMsg = text
+      }
+      throw new Error(errMsg)
     }
     return data
   } catch (error) {
@@ -37,7 +44,7 @@ export const evolution = {
   createInstance: async (instanceName) => 
     request('/instance/create', { 
       method: 'POST', 
-      body: JSON.stringify({ instanceName, qrcode: true }) 
+      body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }) 
     }),
 
   deleteInstance: async (instanceName) =>

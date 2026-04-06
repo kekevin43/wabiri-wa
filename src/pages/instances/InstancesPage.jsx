@@ -31,11 +31,10 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
         try {
           data = await evolution.createInstance(instName)
         } catch (err) {
-          // "Bad Request" usually means instance exists but is probably a ghost
-          if (err.message.includes('Bad Request') && retry) {
+          const isConflict = err.message.includes('Bad Request') || err.message.toLowerCase().includes('already exists')
+          if (isConflict && retry) {
             console.log('Duplicate name detected, cleaning up ghost instance...')
             try { await evolution.deleteInstance(instName) } catch (_) {}
-            // Second attempt
             return generateQR(instName, false)
           }
           throw err

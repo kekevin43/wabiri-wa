@@ -76,15 +76,9 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
           clearInterval(pollRef.current)
           setStep('connected')
           onSuccess?.()
-        } else if (step === 'qr') {
-          // Keep the QR code fresh on the screen to prevent 'Couldn't link device' expiration errors
-          try {
-            const qrData = await evolution.getQrCode(instName)
-            if (qrData?.base64) setQrCode(qrData.base64)
-          } catch (_) {}
         }
       } catch (_) { /* silent */ }
-    }, 5000)
+    }, 4000)
   }
 
   return (

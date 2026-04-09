@@ -38,5 +38,15 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
+    server: {
+      proxy: {
+        '/api/whatsapp': {
+          target: env.VITE_EVOLUTION_URL,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/whatsapp\?path=/, ''),
+          headers: { 'apikey': env.VITE_EVOLUTION_API_KEY || env.EVOLUTION_API_KEY }
+        }
+      }
+    }
   }
 })

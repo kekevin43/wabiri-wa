@@ -215,10 +215,19 @@ function TeamSection({ user }) {
   const handleInvite = async () => {
     if (!inviteEmail.trim()) return
     setInviting(true)
-    setTimeout(() => {
-      alert(`Invite sent to ${inviteEmail}.`)
-      setInviteEmail(''); setShowInvite(false); setInviting(false)
-    }, 800)
+    try {
+      // In a real app, this would call an Edge Function or backend endpoint
+      // that uses the Supabase Admin API to invite the user.
+      // For now, we'll just log it to a table if it existed, or simulate it.
+      await new Promise(resolve => setTimeout(resolve, 800))
+      alert(`Invite feature is a placeholder. In production, this would send an email to ${inviteEmail} via Supabase Admin API.`)
+      setInviteEmail('')
+      setShowInvite(false)
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setInviting(false)
+    }
   }
 
   return (

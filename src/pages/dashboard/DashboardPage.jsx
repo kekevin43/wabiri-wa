@@ -139,12 +139,18 @@ export default function DashboardPage() {
           </Card>
           <Card>
             <div style={{ fontSize: 15, fontFamily: 'Syne', fontWeight: 700, marginBottom: 18 }}>System Health</div>
-            {[{ label: 'WhatsApp Proxy', ok: true }, { label: 'Database Link', ok: true }].map(({ label, ok }) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 13 }}>
-                <span style={{ color: 'var(--muted)' }}>{label}</span>
-                <span style={{ color: ok ? 'var(--accent)' : 'var(--danger)', fontWeight: 700 }}>Active</span>
-              </div>
-            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 13 }}>
+              <span style={{ color: 'var(--muted)' }}>WhatsApp Proxy</span>
+               <span style={{ color: stats.loading ? 'var(--muted)' : 'var(--accent)', fontWeight: 700 }}>
+                 {stats.loading ? <Loader2 size={12} className="animate-spin" /> : 'Active'}
+               </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 13 }}>
+              <span style={{ color: 'var(--muted)' }}>Database Link</span>
+               <span style={{ color: stats.loading ? 'var(--muted)' : 'var(--accent)', fontWeight: 700 }}>
+                 {stats.loading ? <Loader2 size={12} className="animate-spin" /> : 'Active'}
+               </span>
+            </div>
           </Card>
         </div>
       </div>

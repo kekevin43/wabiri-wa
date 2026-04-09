@@ -400,7 +400,7 @@ export default function CampaignsPage() {
                        </div>
                     </div>
                  )}
-                 <IconBtn icon={Eye} />
+                 <IconBtn icon={Eye} onClick={() => alert('View Campaign feature is currently a placeholder')} />
                  <IconBtn icon={Trash2} color="var(--danger)" onClick={() => deleteC(c.id)} />
               </div>
             </div>

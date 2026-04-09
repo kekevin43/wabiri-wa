@@ -69,12 +69,12 @@ export const evolution = {
       }) 
     }),
 
-  sendMedia: async (instanceName, remoteJid, base64, fileName, caption = '', mediaType = 'image') =>
+  sendMedia: async (instanceName, remoteJid, media, fileName, caption = '', mediaType = 'image') =>
     request(`/message/sendMedia/${instanceName}`, {
       method: 'POST',
       body: JSON.stringify({
         number: remoteJid,
-        media: base64, 
+        media: media, // Can be base64 string OR public URL
         mediatype: mediaType, 
         fileName: fileName,
         caption: caption,

@@ -57,6 +57,10 @@ export default function InboxPage() {
   const [search, setSearch] = useState('')
   const [syncing, setSyncing] = useState(false)
 
+  // Sidebar CRM State
+  const [contactInfo, setContactInfo] = useState(null)
+  const [savingContact, setSavingContact] = useState(false)
+
   const [headerMenu, setHeaderMenu] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
 
@@ -80,7 +84,39 @@ export default function InboxPage() {
 
   useEffect(() => { fetchLocalContacts() }, [fetchLocalContacts])
 
-  // 2. Load instances & Logic
+  // 2. Fetch Contact Info for Sidebar
+  const fetchContactInfo = useCallback(async (jid) => {
+    if (!jid || !user) return
+    const num = jid.split('@')[0]
+    const { data } = await supabase.from('contacts').select('*').eq('user_id', user.id).eq('phone', num).maybeSingle()
+    setContactInfo(data)
+  }, [user])
+
+  useEffect(() => {
+    if (selectedChat) {
+      const jid = selectedChat.remoteJid || selectedChat.id
+      fetchContactInfo(jid)
+    } else {
+      setContactInfo(null)
+    }
+  }, [selectedChat, fetchContactInfo])
+
+  const handleUpdateContact = async (updates) => {
+    if (!contactInfo || !user) return
+    setSavingContact(true)
+    try {
+      const { error } = await supabase.from('contacts').update(updates).eq('id', contactInfo.id)
+      if (error) throw error
+      setContactInfo(prev => ({ ...prev, ...updates }))
+      if (updates.name) fetchLocalContacts()
+    } catch (e) {
+      alert('Failed: ' + e.message)
+    } finally {
+      setSavingContact(false)
+    }
+  }
+
+  // 3. Load instances & Logic
   const fetchInstances = useCallback(async () => {
     setLoadingChats(true)
     try {
@@ -116,7 +152,7 @@ export default function InboxPage() {
 
   useEffect(() => { fetchInstances() }, [fetchInstances])
 
-  // 3. Update Names to Database
+  // 4. Update Names to Database
   const updateContactNames = useCallback(async (list) => {
     if (!user) return
     const toUpsert = []
@@ -134,7 +170,7 @@ export default function InboxPage() {
     }
   }, [user, savedContacts, fetchLocalContacts])
 
-  // 4. Fetch & poll chats
+  // 5. Fetch & poll chats
   const fetchChats = useCallback(async (inst) => {
     if (!inst) return
     try {
@@ -192,7 +228,7 @@ export default function InboxPage() {
     return () => clearInterval(chatPollRef.current)
   }, [activeInstance, fetchChats])
 
-  // 5. Messages
+  // 6. Messages
   const fetchMessages = useCallback(async (inst, chat) => {
     if (!inst || !chat) return
     const jid = chat.remoteJid || chat.id
@@ -255,7 +291,8 @@ export default function InboxPage() {
         }; reader.readAsDataURL(file)
       }} style={{ display: 'none' }} />
 
-      <div style={{ width: '30%', minWidth: 320, maxWidth: 420, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
+      {/* ── Chat List ── */}
+      <div style={{ width: '25%', minWidth: 300, maxWidth: 380, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
         <div style={{ height: 60, padding: '0 16px', background: 'var(--surface-header)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', position: 'relative' }}>
           <span style={{ fontSize: 20, fontWeight: 700 }}>WhatsApp</span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -288,35 +325,89 @@ export default function InboxPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Chat View ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--surface2)' }}>
         {selectedChat ? (
-          <>
-            <div style={{ height: 60, padding: '0 16px', background: 'var(--surface-header)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} jid={selectedChat.remoteJid || selectedChat.id} size={40} /><div><div style={{ fontSize: 16, fontWeight: 600 }}>{getChatName(selectedChat)}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>last active recently</div></div></div>
-              <IconBtn icon={MoreVertical} />
-            </div>
-            <div style={{ flex: 1, padding: '16px 6%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {loadingMessages && <div style={{ textAlign: 'center', padding: 10 }}><Loader2 className="animate-spin" size={16} color="var(--accent)" /></div>}
-              {messages.map(msg => (
-                <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '75%', padding: '8px 12px', borderRadius: 10, background: msg.key?.fromMe ? 'var(--bubble-out)' : 'var(--bubble-in)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', fontSize: 14, position: 'relative' }}>
-                  {msg.message?.conversation || '📎 Media'}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
-                    <span>{fmtTime(msg.messageTimestamp)}</span>
-                    {msg.key?.fromMe && <MessageStatus status={msg.status} />}
-                  </div>
+          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }}>
+                <div style={{ height: 60, padding: '0 16px', background: 'var(--surface-header)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} jid={selectedChat.remoteJid || selectedChat.id} size={40} /><div><div style={{ fontSize: 16, fontWeight: 600 }}>{getChatName(selectedChat)}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>last active recently</div></div></div>
+                  <IconBtn icon={MoreVertical} />
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-            <div style={{ padding: '10px 16px', background: 'var(--surface-header)', borderTop: '1px solid var(--border)' }}>
-              <form onSubmit={handleSend} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                <IconBtn icon={Smile} onClick={() => setEmojiOpen(!emojiOpen)} />
-                <IconBtn icon={Paperclip} onClick={() => fileInputRef.current?.click()} />
-                <input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type a message" style={{ flex: 1, padding: '10px 16px', borderRadius: 24, border: 'none', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
-                {messageText.trim() ? <button type="submit" style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><SendIcon size={24} /></button> : <IconBtn icon={Mic} />}
-              </form>
-            </div>
-          </>
+                <div style={{ flex: 1, padding: '16px 6%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {loadingMessages && <div style={{ textAlign: 'center', padding: 10 }}><Loader2 className="animate-spin" size={16} color="var(--accent)" /></div>}
+                  {messages.map(msg => (
+                    <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '75%', padding: '8px 12px', borderRadius: 10, background: msg.key?.fromMe ? 'var(--bubble-out)' : 'var(--bubble-in)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', fontSize: 14, position: 'relative' }}>
+                      {msg.message?.conversation || '📎 Media'}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
+                        <span>{fmtTime(msg.messageTimestamp)}</span>
+                        {msg.key?.fromMe && <MessageStatus status={msg.status} />}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+                <div style={{ padding: '10px 16px', background: 'var(--surface-header)', borderTop: '1px solid var(--border)' }}>
+                  <form onSubmit={handleSend} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    <IconBtn icon={Smile} onClick={() => setEmojiOpen(!emojiOpen)} />
+                    <IconBtn icon={Paperclip} onClick={() => fileInputRef.current?.click()} />
+                    <input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type a message" style={{ flex: 1, padding: '10px 16px', borderRadius: 24, border: 'none', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                    {messageText.trim() ? <button type="submit" style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><SendIcon size={24} /></button> : <IconBtn icon={Mic} />}
+                  </form>
+                </div>
+             </div>
+
+             {/* ── CRM Sidebar ── */}
+             <div style={{ width: 300, background: 'var(--surface)', display: 'flex', flexDirection: 'column', padding: 24, boxSizing: 'border-box', overflowY: 'auto' }}>
+                <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                   <Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} jid={selectedChat.remoteJid || selectedChat.id} size={84} />
+                   <h3 style={{ margin: '16px 0 4px', fontSize: 18, fontFamily: 'Syne' }}>{getChatName(selectedChat)}</h3>
+                   <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{(selectedChat.remoteJid || selectedChat.id).split('@')[0]}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                   <div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Tags</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                         {(contactInfo?.tags || []).map(t => (
+                            <span key={t} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--accent-glow)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                               {t}
+                               <X size={12} style={{ cursor: 'pointer' }} onClick={() => handleUpdateContact({ tags: contactInfo.tags.filter(tg => tg !== t) })} />
+                            </span>
+                         ))}
+                         {(!contactInfo?.tags || contactInfo.tags.length === 0) && <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>No tags assigned</div>}
+                      </div>
+                      <input 
+                         onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                               const nt = e.target.value.trim().toLowerCase().replace(/\s+/g, '-')
+                               const tags = Array.from(new Set([...(contactInfo?.tags || []), nt]))
+                               handleUpdateContact({ tags })
+                               e.target.value = ''
+                            }
+                         }}
+                         placeholder="+ Add Tag" 
+                         style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 12, outline: 'none', color: 'var(--text)' }} 
+                      />
+                   </div>
+
+                   <div style={{ height: 1, background: 'var(--border)' }} />
+
+                   <div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Notes</div>
+                      <textarea 
+                         value={contactInfo?.notes || ''}
+                         onChange={(e) => setContactInfo(p => ({ ...p, notes: e.target.value }))}
+                         onBlur={(e) => handleUpdateContact({ notes: e.target.value })}
+                         placeholder="Add private notes about this contact..."
+                         style={{ width: '100%', height: 120, padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 13, outline: 'none', color: 'var(--text)', resize: 'none', fontFamily: 'inherit' }}
+                      />
+                      {savingContact && <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 4, textAlign: 'right' }}>Saving...</div>}
+                   </div>
+                </div>
+             </div>
+          </div>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
             <div style={{ width: 120, height: 120, borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}><Smartphone size={52} color="var(--accent)" /></div>
@@ -328,6 +419,7 @@ export default function InboxPage() {
     </div>
   )
 }
+
 function IconBtn({ icon: Icon, onClick, spinning }) {
   return (<button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, borderRadius: 8, display: 'flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'none'}><Icon size={20} className={spinning ? 'animate-spin' : ''} /></button>)
 }

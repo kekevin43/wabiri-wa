@@ -123,13 +123,34 @@ function parseCSV(text) {
   }).filter(c => c.name && c.phone)
 }
 
+// ── Bulk Tag Modal ────────────────────────────────────────────────────────────
+function BulkTagModal({ onClose, onApply, count }) {
+  const [tag, setTag] = useState('')
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+      <div className="fade-up" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '32px', width: 400 }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Bulk Tag</h2>
+        <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 13 }}>Apply a tag to {count} selected contacts.</p>
+        <Input label="Tag Name" placeholder="e.g. newsletter-2024" value={tag} onChange={e => setTag(e.target.value.toLowerCase().replace(/\s+/g, '-'))} />
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => { onApply(tag); onClose() }} disabled={!tag.trim()}>Apply Tag</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ContactsPage() {
   const { user } = useAuth()
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [filterTag, setFilterTag] = useState('')
+  const [selectedIds, setSelectedIds] = useState(new Set())
   const [showModal, setShowModal] = useState(false)
+  const [showBulkTag, setShowBulkTag] = useState(false)
   const [menuId, setMenuId] = useState(null)
   const fileRef = useRef(null)
 
@@ -155,21 +176,87 @@ export default function ContactsPage() {
     if (user) fetchContacts()
   }, [user])
 
-  const filtered = contacts.filter(c =>
-    !search ||
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone.includes(search) ||
-    (c.tags && c.tags.some(t => t.toLowerCase().includes(search.toLowerCase())))
-  )
+  // Extract all unique tags for the filter dropdown
+  const allTags = Array.from(new Set(contacts.flatMap(c => c.tags || []))).sort()
+
+  const filtered = contacts.filter(c => {
+    const matchesSearch = !search ||
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone.includes(search) ||
+      (c.tags && c.tags.some(t => t.toLowerCase().includes(search.toLowerCase())))
+    
+    const matchesTag = !filterTag || (c.tags && c.tags.includes(filterTag))
+    
+    return matchesSearch && matchesTag
+  })
+
+  const toggleSelect = (id) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(c => c.id)))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} contacts?`)) return
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('contacts').delete().in('id', ids)
+    if (error) return alert('Bulk delete failed: ' + error.message)
+    setContacts(prev => prev.filter(c => !selectedIds.has(c.id)))
+    setSelectedIds(new Set())
+  }
+
+  const handleBulkTag = async (tagName) => {
+    const ids = Array.from(selectedIds)
+    const toUpdate = contacts.filter(c => selectedIds.has(c.id)).map(c => {
+      const currentTags = c.tags || []
+      const nextTags = Array.from(new Set([...currentTags, tagName]))
+      return { ...c, tags: nextTags }
+    })
+
+    // Supabase multi-row update is tricky without a stored procedure, 
+    // but for small batches we can just loop or use a single request if the structure allows.
+    // Actually, we'll just update them one by one for safety or use a single RPC if available.
+    // Optimal: Promise.all for now as contact lists usually < 100 for bulk tagging.
+    try {
+      await Promise.all(toUpdate.map(c => 
+        supabase.from('contacts').update({ tags: c.tags }).eq('id', c.id)
+      ))
+      setContacts(prev => prev.map(c => {
+        const updated = toUpdate.find(u => u.id === c.id)
+        return updated || c
+      }))
+      setSelectedIds(new Set())
+    } catch (e) {
+      alert('Failed to update tags: ' + e.message)
+    }
+  }
 
   const handleAdd = async (newContact) => {
-    const { data, error } = await supabase
-      .from('contacts')
-      .insert([{ ...newContact, user_id: user.id }])
-      .select()
-    
-    if (error) throw error
-    if (data) setContacts(prev => [data[0], ...prev])
+    // 1. Check for duplicate
+    const num = newContact.phone.replace(/\D/g, '')
+    const { data: existing } = await supabase.from('contacts').select('id').eq('user_id', user.id).eq('phone', num).maybeSingle()
+    if (existing) {
+       if (!confirm('This phone number already exists. Update it?')) return
+       const { data: updated, error } = await supabase.from('contacts').update(newContact).eq('id', existing.id).select()
+       if (error) throw error
+       setContacts(prev => prev.map(c => c.id === existing.id ? updated[0] : c))
+    } else {
+       const { data, error } = await supabase
+         .from('contacts')
+         .insert([{ ...newContact, phone: num, user_id: user.id }])
+         .select()
+       if (error) throw error
+       if (data) setContacts(prev => [data[0], ...prev])
+    }
   }
 
   const handleDelete = async (id) => {
@@ -192,21 +279,32 @@ export default function ContactsPage() {
       const parsed = parseCSV(ev.target.result)
       if (parsed.length === 0) return alert('No valid contacts found.')
       
-      const toInsert = parsed.map(c => ({ ...c, user_id: user.id }))
-      const { data, error } = await supabase.from('contacts').insert(toInsert).select()
+      const toUpsert = parsed.map(c => ({ 
+        ...c, 
+        phone: c.phone.replace(/\D/g, ''),
+        user_id: user.id 
+      }))
+
+      // Use upsert to handle duplicates on (user_id, phone)
+      const { data, error } = await supabase.from('contacts').upsert(toUpsert, { onConflict: 'user_id, phone' }).select()
       
       if (error) return alert('Failed to import contacts: ' + error.message)
-      if (data) setContacts(prev => [...data, ...prev])
-      alert(`✅ Imported ${data.length} contacts`)
+      if (data) {
+        // Refresh full list to handle potential name updates
+        const { data: all } = await supabase.from('contacts').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+        setContacts(all || [])
+      }
+      alert(`✅ Processed ${toUpsert.length} contacts`)
     }
     reader.readAsText(file)
     e.target.value = ''
   }
 
   const handleExport = () => {
-    if (contacts.length === 0) return alert('No contacts to export.')
+    const listToExport = selectedIds.size > 0 ? contacts.filter(c => selectedIds.has(c.id)) : contacts
+    if (listToExport.length === 0) return alert('No contacts to export.')
     const headers = ['Name', 'Phone', 'Tags', 'Last Active']
-    const rows = contacts.map(c => [c.name, c.phone, (c.tags || []).join(';'), c.last_active])
+    const rows = listToExport.map(c => [c.name, c.phone, (c.tags || []).join(';'), c.last_active])
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -218,7 +316,7 @@ export default function ContactsPage() {
   const initial = (name) => (name || '?').charAt(0).toUpperCase()
 
   return (
-    <div className="fade-up" onClick={() => menuId && setMenuId(null)}>
+    <div className="fade-up" onClick={() => menuId && setMenuId(null)} style={{ paddingBottom: 100 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <PageHeader title="Contacts" subtitle={`${contacts.length} contact${contacts.length !== 1 ? 's' : ''}`} style={{ marginBottom: 0 }} />
@@ -228,7 +326,7 @@ export default function ContactsPage() {
             <Upload size={15} /> Import CSV
           </Button>
           <Button variant="ghost" size="sm" onClick={handleExport} disabled={loading}>
-            <Download size={15} /> Export CSV
+            <Download size={15} /> {selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export CSV'}
           </Button>
           <Button size="sm" onClick={() => setShowModal(true)} disabled={loading}>
             <Plus size={15} /> Add Contact
@@ -238,7 +336,7 @@ export default function ContactsPage() {
 
       {/* Search + Filter bar */}
       <Card style={{ marginBottom: 24, padding: '14px 18px' }}>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
             <input
@@ -248,7 +346,29 @@ export default function ContactsPage() {
             />
             {search && <X size={14} onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'var(--muted)' }} />}
           </div>
-          <Button variant="ghost" size="sm"><Filter size={14} /> Filter</Button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Filter size={14} color="var(--muted)" />
+            <select
+              value={filterTag}
+              onChange={e => setFilterTag(e.target.value)}
+              style={{
+                background: 'var(--surface2)', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '8px 12px', fontSize: 13,
+                color: filterTag ? 'var(--accent)' : 'var(--text)',
+                fontFamily: 'Outfit', outline: 'none', cursor: 'pointer'
+              }}
+            >
+              <option value="">All Tags</option>
+              {allTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+            </select>
+          </div>
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          
+          <Button variant="ghost" size="sm" onClick={toggleSelectAll} style={{ padding: '8px 12px' }}>
+            {selectedIds.size === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All'}
+          </Button>
         </div>
       </Card>
 
@@ -267,8 +387,8 @@ export default function ContactsPage() {
               borderRadius: 16, border: '1px dashed var(--border)',
             }}>
               <User size={36} style={{ margin: '0 auto 14px', display: 'block', opacity: 0.4 }} />
-              {search
-                ? <p style={{ margin: 0 }}>No contacts match "<strong>{search}</strong>"</p>
+              {search || filterTag
+                ? <p style={{ margin: 0 }}>No contacts match your filters.</p>
                 : <> 
                     <p style={{ margin: '0 0 16px' }}>No contacts yet.</p>
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
@@ -279,16 +399,28 @@ export default function ContactsPage() {
               }
             </div>
           ) : filtered.map(contact => (
-            <Card key={contact.id} style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
+            <Card 
+              key={contact.id} 
+              onClick={() => toggleSelect(contact.id)}
+              style={{ 
+                display: 'flex', flexDirection: 'column', gap: 14, 
+                position: 'relative', cursor: 'pointer',
+                border: selectedIds.has(contact.id) ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: selectedIds.has(contact.id) ? 'var(--accent-glow)' : 'var(--surface)',
+                transform: selectedIds.has(contact.id) ? 'scale(1.02)' : 'none',
+                transition: 'all 0.2s'
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <div style={{
                     width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
-                    background: 'var(--accent-glow)', color: 'var(--accent)',
+                    background: selectedIds.has(contact.id) ? 'var(--accent)' : 'var(--accent-glow)',
+                    color: selectedIds.has(contact.id) ? '#fff' : 'var(--accent)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 18, fontWeight: 700, fontFamily: 'Syne',
                   }}>
-                    {initial(contact.name)}
+                    {selectedIds.has(contact.id) ? <CheckCircle2 size={24} /> : initial(contact.name)}
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{contact.name}</div>
@@ -312,7 +444,7 @@ export default function ContactsPage() {
                       <div style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--danger)' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={() => handleDelete(contact.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }}
                       >
                         <Trash2 size={14} /> Delete Contact
                       </div>
@@ -324,7 +456,7 @@ export default function ContactsPage() {
               {contact.tags && contact.tags.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {contact.tags.map(tag => (
-                    <Badge key={tag} color="muted">
+                    <Badge key={tag} color={selectedIds.has(contact.id) ? 'accent' : 'muted'}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <TagIcon size={9} /> {tag}
                       </span>
@@ -337,12 +469,9 @@ export default function ContactsPage() {
                 <span>Last Active: {contact.last_active || 'just now'}</span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <a href={`https://wa.me/${contact.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                    onClick={e => e.stopPropagation()}
                     style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', textDecoration: 'none' }}>
                     <Phone size={13} />
-                  </a>
-                  <a href={`mailto:${contact.email || ''}`}
-                    style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', textDecoration: 'none' }}>
-                    <Mail size={13} />
                   </a>
                 </div>
               </div>
@@ -351,7 +480,35 @@ export default function ContactsPage() {
         </div>
       )}
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div 
+          className="fade-up"
+          style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: '12px 24px', display: 'flex', alignItems: 'center',
+            gap: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 100, borderLeft: '4px solid var(--accent)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>
+              {selectedIds.size}
+            </div>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Contacts Selected</span>
+          </div>
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowBulkTag(true)}><TagIcon size={14} /> Tag</Button>
+            <Button variant="ghost" size="sm" onClick={handleExport}><Download size={14} /> Export</Button>
+            <Button variant="danger" size="sm" onClick={handleBulkDelete}><Trash2 size={14} /> Delete</Button>
+          </div>
+        </div>
+      )}
+
       {showModal && <AddContactModal onClose={() => setShowModal(false)} onSave={handleAdd} />}
+      {showBulkTag && <BulkTagModal count={selectedIds.size} onClose={() => setShowBulkTag(false)} onApply={handleBulkTag} />}
     </div>
   )
 }

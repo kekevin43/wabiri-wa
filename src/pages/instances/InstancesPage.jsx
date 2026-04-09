@@ -3,9 +3,12 @@ import { Smartphone, Plus, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Loader2, Ch
 import { Card, Badge, Button, PageHeader, Input } from '../../components/ui'
 import { evolution } from '../../lib/evolution'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../lib/AuthContext'
 
-// ── QR Modal ─────────────────────────────────────────────────────────────────
+// -- QR Modal ------------------------------------------------------------------
+
 function QRModal({ instanceName: existingName, onClose, onSuccess }) {
+  const { user } = useAuth()
   const isReconnect = !!existingName
   const [step, setStep] = useState(isReconnect ? 'qr' : 'form')
   const [name, setName] = useState(existingName || '')
@@ -13,6 +16,8 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const pollRef = useRef(null)
+
+  const prefix = `u_${user?.id.split('-')[0]}_`
 
   // If reconnecting, generate QR immediately
   useEffect(() => {
@@ -23,41 +28,39 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
   const generateQR = async (instName, retry = true) => {
     setLoading(true)
     setError(null)
+    const fullName = instName.startsWith(prefix) ? instName : `${prefix}${instName}`
+    
     try {
       let data
       if (isReconnect) {
-        data = await evolution.getQrCode(instName)
+        data = await evolution.getQrCode(fullName)
       } else {
         try {
-          data = await evolution.createInstance(instName)
+          data = await evolution.createInstance(fullName)
         } catch (err) {
           const isConflict = err.message.includes('Bad Request') || err.message.toLowerCase().includes('already exists')
           if (isConflict && retry) {
-            console.log('Cleaning ghost instance...')
-            try { await evolution.deleteInstance(instName) } catch (_) {}
-            await new Promise(r => setTimeout(r, 3000)) // Cool-down for server DB clearing
+            try { await evolution.deleteInstance(fullName) } catch (_) {}
+            await new Promise(r => setTimeout(r, 2000))
             return generateQR(instName, false)
           }
           throw err
         }
       }
 
-      // Handle direct QR data from creation or separate connect
       const base64 = data?.qrcode?.base64 || data?.base64 || data?.qrcode?.code || data?.code
       if (base64) {
         setQrCode(base64)
         setStep('qr')
-        startPolling(instName)
+        startPolling(fullName)
       } else {
-        throw new Error('Connection timed out. Please try a different name (e.g. name2).')
+        throw new Error('QR timeout. Try again.')
       }
     } catch (err) {
-      console.error('Handshake Error:', err)
       setError(err.message)
       setStep('form')
     } finally {
-      if (!retry) setLoading(false)
-      else if (step !== 'qr') setLoading(false)
+      if (!retry || step !== 'qr') setLoading(false)
     }
   }
 
@@ -66,18 +69,18 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
     await generateQR(name.trim())
   }
 
-  const startPolling = (instName) => {
+  const startPolling = (fullName) => {
     clearInterval(pollRef.current)
     pollRef.current = setInterval(async () => {
       try {
-        const status = await evolution.getStatus(instName)
+        const status = await evolution.getStatus(fullName)
         const state = status?.instance?.state || status?.state
         if (state === 'open' || state === 'connected') {
           clearInterval(pollRef.current)
           setStep('connected')
           onSuccess?.()
         }
-      } catch (_) { /* silent */ }
+      } catch (_) {}
     }, 4000)
   }
 
@@ -89,7 +92,7 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
     }}>
       <div className="fade-up" style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 20, padding: '36px', width: 420, textAlign: 'center',
+        borderRadius: 20, padding: '32px', width: 420, textAlign: 'center',
       }}>
         {/* STEP: form */}
         {step === 'form' && (
@@ -98,9 +101,9 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
               <Smartphone size={26} color="var(--accent)" />
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: 20 }}>Add WhatsApp Instance</h2>
-            <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 13 }}>Give this device a name so you can identify it</p>
+            <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 13 }}>Give this device a name (e.g. Sales)</p>
             {error && <div style={{ padding: '10px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', borderRadius: 8, fontSize: 12, marginBottom: 16, textAlign: 'left' }}>{error}</div>}
-            <Input label="Device Name" placeholder="e.g. Sales Team · Kevin's iPhone" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 16, textAlign: 'left' }} />
+            <Input label="Device Name" placeholder="e.g. Sales" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 16, textAlign: 'left' }} />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <Button variant="ghost" onClick={onClose}>Cancel</Button>
               <Button onClick={handleCreate} disabled={!name.trim() || loading}>
@@ -129,11 +132,11 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
               )}
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20, lineHeight: 1.5 }}>
-              Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong>
+              Open WhatsApp â <strong>Settings â Linked Devices â Link a Device</strong>
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
               <Loader2 className="animate-spin" size={14} color="var(--accent)" />
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Waiting for scan…</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Waiting for scanâ¦</span>
               <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
             </div>
           </>
@@ -146,10 +149,9 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
               <CheckCircle2 size={34} color="var(--accent)" />
             </div>
             <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Connected!</h2>
-            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 8 }}>
+            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 24 }}>
               <strong>{name}</strong> is now live and ready.
             </p>
-            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 24 }}>You can now send messages and campaigns through this instance.</p>
             <Button onClick={onClose}>Done</Button>
           </>
         )}
@@ -158,8 +160,9 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// -- Main Page -----------------------------------------------------------------
 export default function InstancesPage() {
+  const { user } = useAuth()
   const [instances, setInstances] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -168,22 +171,34 @@ export default function InstancesPage() {
   const pollRef = useRef(null)
   const navigate = useNavigate()
 
+  // Helper to isolate instances per user
+  const getPrefix = (uid) => `u_${uid.split('-')[0]}_`
+  const prefix = getPrefix(user?.id || '')
+
   const parseInstances = (rawData) => {
     const list = Array.isArray(rawData) ? rawData : (rawData?.instances || [])
-    return list.map(inst => {
-      const info = inst.instance || inst
-      const name = info.instanceName || info.name || info.instance_name || '(unnamed)'
-      const id = info.instanceId || info.id || name
-      const rawStatus = info.connectionStatus || info.state || info.status || ''
-      const isConnected = ['open', 'CONNECTED', 'connected'].includes(rawStatus)
-      return {
-        id,
-        name,
-        number: info.owner || info.ownerJid?.split('@')[0] || info.number || null,
-        status: isConnected ? 'connected' : 'disconnected',
-        rawStatus,
-      }
-    })
+    return list
+      .map(inst => {
+        const info = inst.instance || inst
+        const fullName = info.instanceName || info.name || info.instance_name || ''
+        
+        // Only show instances belonging to this user
+        if (!fullName.startsWith(prefix)) return null
+        
+        const displayName = fullName.replace(prefix, '')
+        const id = info.instanceId || info.id || fullName
+        const rawStatus = info.connectionStatus || info.state || info.status || ''
+        const isConnected = ['open', 'CONNECTED', 'connected'].includes(rawStatus)
+        return {
+          id,
+          name: displayName,
+          fullName: fullName,
+          number: info.owner || info.ownerJid?.split('@')[0] || info.number || null,
+          status: isConnected ? 'connected' : 'disconnected',
+          rawStatus,
+        }
+      })
+      .filter(Boolean)
   }
 
   const fetchInstances = async (silent = false) => {
@@ -191,21 +206,7 @@ export default function InstancesPage() {
       if (!silent) setLoading(true)
       const rawData = await evolution.listInstances()
       const parsed = parseInstances(rawData)
-
-      // Auto-clean disconnected instances that have no phone number yet
-      // (these are ghost instances — created but never scanned)
-      const ghosts = parsed.filter(i => i.status === 'disconnected' && !i.number)
-      for (const ghost of ghosts) {
-        try { await evolution.deleteInstance(ghost.name) } catch (_) {}
-      }
-
-      // Refetch after cleanup if any ghosts removed
-      if (ghosts.length > 0) {
-        const fresh = await evolution.listInstances()
-        setInstances(parseInstances(fresh))
-      } else {
-        setInstances(parsed)
-      }
+      setInstances(parsed)
     } catch (e) {
       console.error('Failed to fetch instances', e)
     } finally {
@@ -263,7 +264,7 @@ export default function InstancesPage() {
       {loading ? (
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--muted)' }}>
           <Loader2 className="animate-spin" size={28} style={{ margin: '0 auto 12px', display: 'block' }} />
-          Loading devices…
+          Loading devicesâ¦
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -363,7 +364,7 @@ export default function InstancesPage() {
   )
 }
 
-// ── Instance Card ─────────────────────────────────────────────────────────────
+// -- Instance Card -------------------------------------------------------------
 function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting, refreshing }) {
   const connected = inst.status === 'connected'
   const initial = (inst.name || '?').charAt(0).toUpperCase()
@@ -386,7 +387,7 @@ function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting, refreshi
             <div style={{ fontWeight: 700, fontFamily: 'Syne', fontSize: 16, marginBottom: 2 }}>{inst.name}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'JetBrains Mono', display: 'flex', alignItems: 'center', gap: 5 }}>
               {connected
-                ? <><Wifi size={10} color="var(--accent)" /> {inst.number || 'Fetching number…'}</>
+                ? <><Wifi size={10} color="var(--accent)" /> {inst.number || 'Fetching number...'}</>
                 : <><WifiOff size={10} /> {inst.number || 'Not linked'}</>
               }
             </div>
@@ -405,7 +406,7 @@ function InstanceCard({ inst, onConnect, onDelete, onRefresh, deleting, refreshi
               ? <Loader2 className="animate-spin" size={13} />
               : <RefreshCw size={13} />
             }
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={onDelete} disabled={deleting}

@@ -1,4 +1,4 @@
-:root {
+:root, [data-theme="dark"] {
   --wa-bg: #111b21;
   --wa-sidebar: #111b21;
   --wa-header: #202c33;
@@ -23,6 +23,31 @@
   --bubble-out: var(--wa-bubble-out);
 
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+[data-theme="light"] {
+  --wa-bg: #f0f2f5;
+  --wa-sidebar: #ffffff;
+  --wa-header: #f0f2f5;
+  --wa-active: #d9fdd3;
+  --wa-hover: #f5f6f6;
+  --wa-text: #111b21;
+  --wa-text-muted: #667781;
+  --wa-accent: #00a884;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #d9fdd3;
+  --wa-search-bg: #f0f2f5;
+  --wa-border: #e9edef;
+
+  --surface: #ffffff;
+  --surface2: #f0f2f5;
+  --surface-header: #f0f2f5;
+  --text: #111b21;
+  --muted: #667781;
+  --accent: #00a884;
+  --border: #e9edef;
+  --danger: #dc3545;
+  --accent-glow: rgba(0,168,132,0.1);
 }
 
 body {

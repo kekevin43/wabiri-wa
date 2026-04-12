@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.campaign_contacts (
 );
 
 -- Setup Storage for Campaigns
--- INSERT INTO storage.buckets (id, name, public) VALUES ('campaigns', 'campaigns', true) ON CONFLICT DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('campaigns', 'campaigns', true) ON CONFLICT DO NOTHING;
 
 -- RLS Policies
 ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
@@ -70,3 +70,20 @@ CREATE POLICY "Users can view their own campaign_contacts" ON public.campaign_co
 CREATE POLICY "Users can insert their own campaign_contacts" ON public.campaign_contacts FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.campaigns c WHERE c.id = campaign_id AND c.user_id = auth.uid()));
 CREATE POLICY "Users can update their own campaign_contacts" ON public.campaign_contacts FOR UPDATE USING (EXISTS (SELECT 1 FROM public.campaigns c WHERE c.id = campaign_id AND c.user_id = auth.uid()));
 CREATE POLICY "Users can delete their own campaign_contacts" ON public.campaign_contacts FOR DELETE USING (EXISTS (SELECT 1 FROM public.campaigns c WHERE c.id = campaign_id AND c.user_id = auth.uid()));
+
+-- RPC Functions
+CREATE OR REPLACE FUNCTION get_distinct_sources(uid UUID)
+RETURNS TEXT[] LANGUAGE sql STABLE AS $$
+  SELECT ARRAY(SELECT DISTINCT source FROM public.contacts WHERE user_id = uid AND source IS NOT NULL ORDER BY source);
+$$;
+
+CREATE OR REPLACE FUNCTION get_distinct_tags(uid UUID)
+RETURNS TEXT[] LANGUAGE sql STABLE AS $$
+  SELECT ARRAY(SELECT DISTINCT unnest(tags) AS tag FROM public.contacts WHERE user_id = uid ORDER BY tag);
+$$;
+
+CREATE OR REPLACE FUNCTION add_tag_to_contacts(contact_ids UUID[], tag TEXT)
+RETURNS void LANGUAGE sql AS $$
+  UPDATE public.contacts SET tags = array_append(tags, tag)
+  WHERE id = ANY(contact_ids) AND NOT (tags @> ARRAY[tag]);
+$$;

@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // Apply theme as early as possible to prevent flashing
-const savedTheme = localStorage.getItem('wabiri-theme') || 'light'
+const savedTheme = localStorage.getItem('wabiri-theme') || 'dark'
 document.documentElement.setAttribute('data-theme', savedTheme)
 
 createRoot(document.getElementById('root')).render(

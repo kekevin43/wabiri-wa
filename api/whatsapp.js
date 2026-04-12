@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     console.error('Proxy Error:', error);
     const isTimeout = error.name === 'AbortError';
     return res.status(isTimeout ? 504 : 500).json({ 
-      error: isTimeout ? 'WhatsApp Engine timed out (12s limit)' : `Connection failed: ${error.message}`,
+      error: isTimeout ? 'WhatsApp Engine timed out (60s limit)' : `Connection failed: ${error.message}`,
       hint: 'Check if your EVOLUTION_URL is correct and publicly reachable.',
       attemptedUrl: fullUrl
     });

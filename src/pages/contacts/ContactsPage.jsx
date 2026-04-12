@@ -4,6 +4,7 @@ import { Card, Button, Badge, PageHeader, Input } from '../../components/ui'
 import { supabase } from '../../lib/supabase'
 import { evolution } from '../../lib/evolution'
 import { useAuth } from '../../lib/AuthContext'
+import { parsePhoneNumber } from 'libphonenumber-js'
 
 function AddContactModal({ onClose, onSave, editingContact }) {
   const [form, setForm] = useState({ 
@@ -36,9 +37,22 @@ function AddContactModal({ onClose, onSave, editingContact }) {
     setSaving(true)
     setError('')
     try {
+      let parsedNumber;
+      try {
+        const parsed = parsePhoneNumber(form.phone, 'KE');
+        if (!parsed.isValid()) {
+          setSaving(false);
+          return setError('Invalid phone number format');
+        }
+        parsedNumber = parsed.number.replace('+', '');
+      } catch (e) {
+        setSaving(false);
+        return setError('Invalid phone number');
+      }
+
       await onSave({ 
         full_name: form.full_name.trim(), 
-        phone: form.phone.replace(/\D/g, ''), 
+        phone: parsedNumber, 
         email: form.email.trim(),
         source: form.source.trim(),
         year_added: Number(form.year_added) || new Date().getFullYear(),
@@ -120,7 +134,7 @@ function BulkTagModal({ onClose, onApply, count }) {
 }
 
 function parseCSV(text) {
-  const lines = text.trim().split('\n').filter(Boolean)
+  const lines = text.trim().split(/\r?\n/).filter(Boolean)
   if (lines.length < 2) return []
 
   const headers = lines[0].split(',').map(s => s.trim().toLowerCase().replace(/^"|"$/g, ''))
@@ -188,21 +202,12 @@ export default function ContactsPage() {
 
   const fetchFilters = useCallback(async () => {
     if (!user) return
-    // Simple extraction for demo: In large dbs you might need a separate table or aggregate query.
-    // For now we'll fetch distinct values using standard select (limitation in Supabase JS without RPC)
-    // Actually, skipping exhaustive fetch for 100k, we just let user type or rely on basic common filters.
-    // We'll fetch a small sample for the dropdowns.
-    const { data } = await supabase.from('contacts').select('tags, source').eq('user_id', user.id).limit(1000)
-    if (data) {
-      const tags = new Set()
-      const sources = new Set()
-      data.forEach(c => {
-         if (c.tags) c.tags.forEach(t => tags.add(t))
-         if (c.source) sources.add(c.source)
-      })
-      setUniqueTags(Array.from(tags).sort())
-      setUniqueSources(Array.from(sources).filter(Boolean).sort())
-    }
+    const [tagsRes, sourcesRes] = await Promise.all([
+      supabase.rpc('get_distinct_tags', { uid: user.id }),
+      supabase.rpc('get_distinct_sources', { uid: user.id })
+    ])
+    if (tagsRes.data) setUniqueTags(tagsRes.data)
+    if (sourcesRes.data) setUniqueSources(sourcesRes.data.filter(Boolean))
   }, [user])
 
   const fetchContacts = useCallback(async () => {
@@ -285,16 +290,10 @@ export default function ContactsPage() {
     const tag = tagName.toLowerCase().replace(/\s+/g, '-')
     const ids = Array.from(selectedIds)
     
-    // Fallback: update individually for safety, in production an RPC function is better.
-    // To handle large numbers efficiently:
     setLoading(true)
-    for (let id of ids) {
-       const contact = contacts.find(c => c.id === id)
-       if (contact && !contact.tags?.includes(tag)) {
-          const nextTags = [...(contact.tags || []), tag]
-          await supabase.from('contacts').update({ tags: nextTags }).eq('id', id)
-       }
-    }
+    const { error } = await supabase.rpc('add_tag_to_contacts', { contact_ids: ids, tag })
+    if (error) alert('Failed to bulk tag: ' + error.message)
+    
     await fetchContacts()
     setSelectedIds(new Set())
     setLoading(false)
@@ -306,7 +305,7 @@ export default function ContactsPage() {
        if (error) throw error
     } else {
        // Upsert logic for new creations
-       const { error } = await supabase.from('contacts').upsert([{ ...contactData, user_id: user.id }], { onConflict: 'user_id, phone' })
+       const { error } = await supabase.from('contacts').upsert([{ ...contactData, user_id: user.id }], { onConflict: 'user_id,phone' })
        if (error) throw error
     }
     fetchContacts()
@@ -340,7 +339,7 @@ export default function ContactsPage() {
         const BATCH_SIZE = 1000
         for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
             const chunk = toUpsert.slice(i, i + BATCH_SIZE)
-            const { error } = await supabase.from('contacts').upsert(chunk, { onConflict: 'user_id, phone' })
+            const { error } = await supabase.from('contacts').upsert(chunk, { onConflict: 'user_id,phone' })
             if (error) throw error
         }
         

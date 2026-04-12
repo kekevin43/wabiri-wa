@@ -44,7 +44,7 @@ export default function BulkSendPage() {
     if (!user) return
     setLoading(true)
     try {
-      const { data } = await supabase.from('contacts').select('*').eq('user_id', user.id).order('full_name', { ascending: true })
+      const { data } = await supabase.from('contacts').select('*').eq('user_id', user.id).order('full_name', { ascending: true }).limit(5000)
       if (data) {
         setContacts(data)
         const tags = new Set()
@@ -62,13 +62,28 @@ export default function BulkSendPage() {
       const list = Array.isArray(data) ? data : (data?.data || data?.chats || [])
       const toUpsert = []
       list.forEach(chat => {
-        const jid = chat.remoteJid || chat.id
+        const jid = chat.remoteJid || chat.id || ''
         const num = jid.split('@')[0]
-        const name = chat.pushName || chat.name || num
-        toUpsert.push({ user_id: user.id, full_name: name, phone: num })
+        
+        // Skip groups, broadcasts, newsletters, status
+        if (
+          jid.endsWith('@g.us') ||
+          jid.endsWith('@broadcast') ||
+          jid.endsWith('@newsletter') ||
+          jid === 'status@broadcast' ||
+          num.length > 15 // valid E.164 max is 15 digits
+        ) return
+
+        const full_name = chat.pushName || chat.name || null
+        toUpsert.push({ 
+          user_id: user.id, 
+          full_name: full_name || num, // fallback to number if no name
+          phone: num,
+          source: 'WhatsApp Sync'
+        })
       })
       if (toUpsert.length > 0) {
-        await supabase.from('contacts').upsert(toUpsert, { onConflict: 'phone,user_id' })
+        await supabase.from('contacts').insert(toUpsert, { ignoreDuplicates: true })
         await fetchSavedData()
       }
     } catch (e) {
@@ -78,17 +93,18 @@ export default function BulkSendPage() {
     }
   }
 
-  useEffect(() => { 
-    fetchInstances()
-    if (method === 'saved') fetchSavedData() 
-  }, [method, fetchInstances, fetchSavedData])
+  useEffect(() => { fetchInstances() }, [fetchInstances])
+
+  useEffect(() => {
+    if (user && method === 'saved') fetchSavedData()
+  }, [user, method, fetchSavedData])
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]; if (!file) return
     setFileName(file.name)
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const lines = ev.target.result.split('\n').filter(Boolean)
+      const lines = ev.target.result.split(/\r?\n/).filter(Boolean)
       const parsed = lines.slice(1).map((line, i) => {
         const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''))
         return { id: `up-${i}`, full_name: parts[1] || `Contact ${i + 1}`, phone: parts[0] || parts[1] }
@@ -202,7 +218,16 @@ export default function BulkSendPage() {
                         </span>
                      </div>
                      <div style={{ maxHeight: 310, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                        {contacts.filter(c => !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)).map(c => (
+                        {loading ? (
+                          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+                            <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 10px' }} />
+                            <div style={{ fontSize: 13 }}>Loading contacts...</div>
+                          </div>
+                        ) : contacts.length === 0 ? (
+                          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                            No contacts yet. Import a CSV from the Contacts page or hit Sync.
+                          </div>
+                        ) : contacts.filter(c => !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)).map(c => (
                            <div key={c.id} onClick={() => setSelectedContacts(p => p.find(x => x.id === c.id) ? p.filter(x => x.id !== c.id) : [...p, c])} style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '10px 15px', borderBottom: '1px solid var(--wa-border)', cursor: 'pointer', background: selectedContacts.find(x => x.id === c.id) ? 'var(--wa-active)' : 'transparent', transition: 'background 0.1s' }}>
                               <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--wa-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                                  <User size={24} color="var(--wa-text-muted)" />

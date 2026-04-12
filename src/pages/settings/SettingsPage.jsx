@@ -48,7 +48,7 @@ export default function SettingsPage() {
       <div style={{ flex: 1, padding: '40px 60px', overflowY: 'auto' }}>
         {activeTab === 'profile'       && <ProfileSection user={user} />}
         {activeTab === 'team'          && <TeamSection user={user} />}
-        {activeTab === 'notifications' && <PlaceholderSection title="Notifications" icon={Bell} msg="Notification preferences will be available soon." />}
+        {activeTab === 'notifications' && <NotificationsSection />}
         {activeTab === 'security'      && <SecuritySection user={user} signOut={signOut} />}
         {activeTab === 'appearance'    && <AppearanceSection />}
       </div>
@@ -301,10 +301,90 @@ function SecuritySection({ user, signOut }) {
 }
 
 function AppearanceSection() {
+  const [currentTheme, setCurrentTheme] = useState(
+    document.documentElement.getAttribute('data-theme') || 'dark'
+  )
+
+  const applyTheme = (t) => {
+    document.documentElement.setAttribute('data-theme', t)
+    localStorage.setItem('wabiri-theme', t)
+    setCurrentTheme(t)
+  }
+
   return (
     <div style={{ maxWidth: 560 }} className="fade-up">
       <PageHeader title="Appearance" subtitle="Customize WaBiri's look" />
-      <Card><div><h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Theme</h3><p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>Use the Moon / Sun icon in the sidebar to toggle Dark / Light mode.</p></div></Card>
+      <Card>
+        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Theme</h3>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {['dark', 'light'].map(t => (
+            <div
+              key={t}
+              onClick={() => applyTheme(t)}
+              style={{
+                flex: 1, padding: '16px', borderRadius: 12, cursor: 'pointer', textAlign: 'center',
+                border: `2px solid ${currentTheme === t ? 'var(--accent)' : 'var(--border)'}`,
+                background: 'var(--surface2)', transition: 'border-color 0.2s',
+              }}
+            >
+              <div style={{ fontSize: 24, marginBottom: 8 }}>{t === 'dark' ? '🌙' : '☀️'}</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: currentTheme === t ? 'var(--accent)' : 'var(--text)' }}>
+                {t === 'dark' ? 'Dark' : 'Light'}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function NotificationsSection() {
+  const [permission, setPermission] = useState(Notification.permission)
+  const [soundOn, setSoundOn] = useState(localStorage.getItem('wabiri-sound') !== 'off')
+
+  const requestNotifications = () => {
+    if (permission === 'granted') {
+      alert('✅ Notifications are already enabled')
+      return
+    }
+    Notification.requestPermission().then(p => {
+      setPermission(p)
+      if (p === 'granted') alert('✅ Notifications enabled!')
+      else alert('Permission denied by browser')
+    })
+  }
+
+  const toggleSound = () => {
+    const next = !soundOn
+    setSoundOn(next)
+    localStorage.setItem('wabiri-sound', next ? 'on' : 'off')
+    alert(`Sound ${next ? 'enabled 🔔' : 'disabled 🔇'}`)
+  }
+
+  return (
+    <div style={{ maxWidth: 560 }} className="fade-up">
+      <PageHeader title="Notifications" subtitle="Control how WaBiri alerts you" />
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>Browser Notifications</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Get notified when new messages arrive</div>
+          </div>
+          <Button variant="ghost" onClick={requestNotifications}>
+            {permission === 'granted' ? '✅ Enabled' : 'Enable'}
+          </Button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>New Message Sound</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Play a sound on incoming messages</div>
+          </div>
+          <Button variant="ghost" onClick={toggleSound}>
+            {soundOn ? '🔔 On' : '🔇 Off'}
+          </Button>
+        </div>
+      </Card>
     </div>
   )
 }

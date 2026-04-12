@@ -15,6 +15,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/whatsapp/:path*",
+      "destination": "/api/whatsapp"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

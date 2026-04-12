@@ -4,7 +4,7 @@ import {
   Video, Loader2, Smartphone, Send as SendIcon, X, RefreshCw,
   UserPlus, CheckCheck as CheckAll, Settings, Archive, Trash2,
   BellOff, Star, Copy, Forward, StopCircle, FileText, Image as ImageIcon,
-  Check, User
+  Check, User, LogOut
 } from 'lucide-react'
 import { evolution } from '../../lib/evolution'
 import { supabase } from '../../lib/supabase'
@@ -56,7 +56,7 @@ function DropdownMenu({ items, onClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function InboxPage() {
-  const { user, refreshUser } = useAuth()
+  const { user, refreshUser, signOut } = useAuth()
   const [instances, setInstances] = useState([])
   const [activeInstance, setActiveInstance] = useState(null)
   const [chats, setChats] = useState([])
@@ -89,10 +89,16 @@ export default function InboxPage() {
   // 1. Fetch saved contacts
   const fetchLocalContacts = useCallback(async () => {
     if (!user) return
-    const { data } = await supabase.from('contacts').select('name, phone').eq('user_id', user.id)
+    const { data } = await supabase.from('contacts').select('full_name, phone').eq('user_id', user.id)
     if (data) {
       const map = {}
-      data.forEach(c => { map[c.phone.replace(/\D/g, '')] = c.name })
+      data.forEach(c => {
+        const normalized = c.phone.replace(/\D/g, '')
+        map[normalized] = c.full_name
+        if (normalized.startsWith('254') && normalized.length === 12) {
+          map['0' + normalized.slice(3)] = c.full_name
+        }
+      })
       setSavedContacts(map)
     }
   }, [user])
@@ -123,7 +129,7 @@ export default function InboxPage() {
       const { error } = await supabase.from('contacts').update(updates).eq('id', contactInfo.id)
       if (error) throw error
       setContactInfo(prev => ({ ...prev, ...updates }))
-      if (updates.name) fetchLocalContacts()
+      if (updates.full_name) fetchLocalContacts()
     } catch (e) {
       alert('Failed: ' + e.message)
     } finally {
@@ -172,15 +178,30 @@ export default function InboxPage() {
     if (!user) return
     const toUpsert = []
     list.forEach(chat => {
-      const jid = chat.remoteJid || chat.id
+      const jid = chat.remoteJid || chat.id || ''
       const num = jid.split('@')[0]
-      const name = chat.pushName || chat.name
-      if (name && !savedContacts[num]) {
-        toUpsert.push({ user_id: user.id, name, phone: num })
+      
+      // Skip groups, broadcasts, newsletters, status
+      if (
+        jid.endsWith('@g.us') ||
+        jid.endsWith('@broadcast') ||
+        jid.endsWith('@newsletter') ||
+        jid === 'status@broadcast' ||
+        num.length > 15 // valid E.164 max is 15 digits
+      ) return
+
+      const full_name = chat.pushName || chat.name || null
+      if (full_name && !savedContacts[num]) {
+        toUpsert.push({ 
+          user_id: user.id, 
+          full_name, 
+          phone: num,
+          source: 'WhatsApp Inbox'
+        })
       }
     })
     if (toUpsert.length > 0) {
-      await supabase.from('contacts').upsert(toUpsert, { onConflict: 'phone,user_id' })
+      await supabase.from('contacts').insert(toUpsert, { ignoreDuplicates: true })
       fetchLocalContacts()
     }
   }, [user, savedContacts, fetchLocalContacts])
@@ -236,12 +257,21 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (!activeInstance) return
+    const connected = instances.find(i => i.instanceName === activeInstance)?.connected
+    // If instance exists but is disconnected, clear stale data and stop polling
+    if (instances.length > 0 && !connected) {
+      setChats([])
+      setMessages([])
+      setSelectedChat(null)
+      clearInterval(chatPollRef.current)
+      return
+    }
     const isFirst = chats.length === 0
     if (isFirst) setLoadingChats(true)
     fetchChats(activeInstance).finally(() => { if (isFirst) setLoadingChats(false) })
     clearInterval(chatPollRef.current); chatPollRef.current = setInterval(() => fetchChats(activeInstance), 8000)
     return () => clearInterval(chatPollRef.current)
-  }, [activeInstance, fetchChats])
+  }, [activeInstance, instances, fetchChats])
 
   // 6. Messages
   const fetchMessages = useCallback(async (inst, chat) => {
@@ -249,7 +279,13 @@ export default function InboxPage() {
     const jid = chat.remoteJid || chat.id
     try {
       const data = await evolution.findMessages(inst, jid)
-      const list = Array.isArray(data) ? data : (data?.data || data?.messages || [])
+      let list = []
+      if (Array.isArray(data)) list = data
+      else if (Array.isArray(data?.messages)) list = data.messages
+      else if (Array.isArray(data?.messages?.records)) list = data.messages.records
+      else if (Array.isArray(data?.data)) list = data.data
+      else if (Array.isArray(data?.records)) list = data.records
+      
       list.sort((a, b) => (a.messageTimestamp || 0) - (b.messageTimestamp || 0))
       setMessages(list)
     } catch (e) { console.error('Msg error', e) }
@@ -257,6 +293,7 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (!activeInstance || !selectedChat) { setMessages([]); return }
+    setMessages([])
     setLoadingMessages(true); fetchMessages(activeInstance, selectedChat).finally(() => setLoadingMessages(false))
     clearInterval(msgPollRef.current); msgPollRef.current = setInterval(() => fetchMessages(activeInstance, selectedChat), 4000)
     return () => clearInterval(msgPollRef.current)
@@ -289,7 +326,7 @@ export default function InboxPage() {
   
   const getChatName = (chat) => {
     const rawNum = (chat.remoteJid || chat.id || '').split('@')[0]
-    const saved = savedContacts[rawNum]
+    const saved = savedContacts[rawNum] || savedContacts[rawNum.replace(/^0+/, '')]
     if (saved) return saved
     const nameStr = chat.pushName || chat.name || rawNum
     return formatContactName(nameStr)
@@ -332,9 +369,20 @@ export default function InboxPage() {
           <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--wa-active)', overflow: 'hidden' }}>
              {user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User color="var(--muted)" style={{ margin: 10 }} />}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <IconBtn icon={RefreshCw} onClick={handleDeepSync} spinning={loadingChats} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+            <IconBtn icon={RefreshCw} onClick={handleDeepSync} spinning={syncing} />
             <IconBtn icon={MoreVertical} onClick={() => setHeaderMenu(v => !v)} />
+            {headerMenu && (
+              <DropdownMenu
+                onClose={() => setHeaderMenu(false)}
+                items={[
+                  { icon: RefreshCw, label: 'Deep Sync Contacts', action: handleDeepSync },
+                  { icon: Settings, label: 'Settings', action: () => window.location.href = '/settings' },
+                  'divider',
+                  { icon: LogOut, label: 'Sign Out', action: signOut, danger: true },
+                ]}
+              />
+            )}
           </div>
         </div>
         <div style={{ padding: '8px 12px' }}>
@@ -349,7 +397,9 @@ export default function InboxPage() {
           ) : !isConnected && activeInstance ? (
              <div style={{ padding: 30, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Device offline.<br /><a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Reconnect →</a></div>
           ) : (chats.filter(c => {
-            const name = getChatName(c).toLowerCase(); const num = (c.remoteJid || c.id || '').split('@')[0]; const s = search.toLowerCase()
+            const jid = c.remoteJid || c.id || ''
+            if (jid === 'status@broadcast' || jid.endsWith('@newsletter')) return false
+            const name = getChatName(c).toLowerCase(); const num = jid.split('@')[0]; const s = search.toLowerCase()
             return !search || name.includes(s) || num.includes(s)
           })).map(chat => (
             <div key={chat.remoteJid || chat.id} onClick={() => setSelectedChat(chat)} style={{ display: 'flex', cursor: 'pointer', alignItems: 'center', background: (selectedChat && (selectedChat.remoteJid || selectedChat.id) === (chat.remoteJid || chat.id)) ? 'var(--wa-active)' : 'transparent', transition: 'background 0.1s' }} onMouseEnter={e => !selectedChat && (e.currentTarget.style.background = 'var(--wa-hover)')} onMouseLeave={e => !selectedChat && (e.currentTarget.style.background = 'transparent')}>
@@ -458,9 +508,9 @@ export default function InboxPage() {
                    <div>
                       <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Notes</div>
                       <textarea 
-                         value={contactInfo?.notes || ''}
-                         onChange={(e) => setContactInfo(p => ({ ...p, notes: e.target.value }))}
-                         onBlur={(e) => handleUpdateContact({ notes: e.target.value })}
+                         value={contactInfo?.remarks || ''}
+                         onChange={(e) => setContactInfo(p => ({ ...p, remarks: e.target.value }))}
+                         onBlur={(e) => handleUpdateContact({ remarks: e.target.value })}
                          placeholder="Add private notes about this contact..."
                          style={{ width: '100%', height: 120, padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 13, outline: 'none', color: 'var(--text)', resize: 'none', fontFamily: 'inherit' }}
                       />

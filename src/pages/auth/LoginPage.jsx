@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
+import { supabase } from '../../lib/supabase'
 import { Zap, ArrowRight, ShieldCheck } from 'lucide-react'
 import { Button, Input } from '../../components/ui'
 import WabiriLogo from '../../components/WabiriLogo'
@@ -13,11 +14,25 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const handleResetPassword = async () => {
+    if (!email) return setError('Please enter your email above first to reset password.')
+    setLoading(true)
+    setError('')
+    try {
+       const { error: err } = await supabase.auth.resetPasswordForEmail(email)
+       if (err) throw err
+       alert(`Reset link sent! If running locally, check Mailpit at http://127.0.0.1:54324`)
+    } catch (err) {
+       setError(err.message)
+    } finally {
+       setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e?.preventDefault()
     setError('')
     setLoading(true)
-    // For demo/trial, allow quick sign in or use actual auth
     const { error: err } = await signIn(email, password)
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -81,7 +96,7 @@ export default function LoginPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>Password</label>
-                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>Forgot?</span>
+                <span onClick={handleResetPassword} style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>Forgot?</span>
              </div>
              <input
                 type="password"

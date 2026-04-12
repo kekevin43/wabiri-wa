@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
         '/api/whatsapp': {
           target: env.VITE_EVOLUTION_URL,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/whatsapp\?path=/, ''),
+          rewrite: (path) => path.replace(/^\/api\/whatsapp/, ''),
           headers: { 'apikey': env.VITE_EVOLUTION_API_KEY || env.EVOLUTION_API_KEY }
         }
       }

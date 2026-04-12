@@ -1,15 +1,21 @@
 const request = async (path, options = {}) => {
   const PROXY_URL = '/api/whatsapp'
-  const url = `${PROXY_URL}?path=${encodeURIComponent(path)}`
+  const cleanPath = path.startsWith('/') ? path.substring(1) : path
+  const url = `${PROXY_URL}/${cleanPath}`
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 12000)
 
   try {
     const res = await fetch(url, {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
     })
+    clearTimeout(timeoutId)
 
     const text = await res.text()
     let data
@@ -89,7 +95,7 @@ export const evolution = {
   findMessages: async (instanceName, remoteJid) =>
     request(`/chat/findMessages/${instanceName}`, { 
       method: 'POST', 
-      body: JSON.stringify({ remoteJid }) 
+      body: JSON.stringify({ where: { remoteJid } }) 
     }),
 
   syncContacts: async (instanceName) =>

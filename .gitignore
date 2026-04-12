@@ -29,3 +29,16 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Supabase & Debugging
+supabase_status.txt
+DEBUG_POSTMORTEM.md
+supabase_schema.sql.bak
+*.bak
+
+# Temporary scripts
+scratch/
+commit_changes.sh
+
+supabase_status.txt
+.env

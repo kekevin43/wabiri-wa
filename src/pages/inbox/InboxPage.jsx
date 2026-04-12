@@ -4,11 +4,25 @@ import {
   Video, Loader2, Smartphone, Send as SendIcon, X, RefreshCw,
   UserPlus, CheckCheck as CheckAll, Settings, Archive, Trash2,
   BellOff, Star, Copy, Forward, StopCircle, FileText, Image as ImageIcon,
-  Check
+  Check, User
 } from 'lucide-react'
 import { evolution } from '../../lib/evolution'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/AuthContext'
+import { parsePhoneNumberFromString } from 'libphonenumber-js'
+
+const formatContactName = (rawName) => {
+  if (!rawName) return 'Unknown'
+  if (rawName.match(/^\d+$/)) {
+    try {
+      const pn = parsePhoneNumberFromString('+' + rawName)
+      return pn ? pn.formatInternational() : `+${rawName}`
+    } catch {
+      return `+${rawName}`
+    }
+  }
+  return rawName
+}
 
 // ── Status Component ─────────────────────────────────────────────────────────
 function MessageStatus({ status }) {
@@ -60,6 +74,7 @@ export default function InboxPage() {
   // Sidebar CRM State
   const [contactInfo, setContactInfo] = useState(null)
   const [savingContact, setSavingContact] = useState(false)
+  const [showSidebar, setShowSidebar] = useState(false)
 
   const [headerMenu, setHeaderMenu] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -252,6 +267,16 @@ export default function InboxPage() {
     if (!messageText.trim() || !activeInstance || !selectedChat || sending) return
     const jid = selectedChat.remoteJid || selectedChat.id; setSending(true)
     const text = messageText; setMessageText('')
+    
+    // Optimistic Update
+    const tempMsg = {
+       key: { id: Date.now().toString(), fromMe: true },
+       message: { conversation: text },
+       messageTimestamp: Math.floor(Date.now() / 1000),
+       status: 0 // Pending
+    }
+    setMessages(prev => [...prev, tempMsg])
+    
     try { await evolution.sendMessage(activeInstance, jid, text) }
     catch (err) { alert('Failed: ' + err.message); setMessageText(text) }
     finally { setSending(false) }
@@ -264,14 +289,24 @@ export default function InboxPage() {
   
   const getChatName = (chat) => {
     const rawNum = (chat.remoteJid || chat.id || '').split('@')[0]
-    return savedContacts[rawNum] || chat.pushName || chat.name || rawNum || 'Unknown'
+    const saved = savedContacts[rawNum]
+    if (saved) return saved
+    const nameStr = chat.pushName || chat.name || rawNum
+    return formatContactName(nameStr)
   }
 
   const Avatar = ({ name, url, jid, size = 48, connected = false }) => {
     const finalUrl = url || (jid ? profilePics[jid] : null)
+    const isUnknownNumber = name?.match(/^\+?\d+$/)
     return (
       <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: connected ? 'var(--accent-glow)' : 'var(--surface2)', border: `2px solid ${connected ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 700, color: 'var(--accent)', fontFamily: 'Syne' }}>
-        {finalUrl ? <img src={finalUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (name || '?').charAt(0).toUpperCase()}
+        {finalUrl ? (
+          <img src={finalUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : isUnknownNumber ? (
+          <User size={size * 0.55} color="var(--muted)" />
+        ) : (
+          (name || '?').charAt(0).toUpperCase()
+        )}
       </div>
     )
   }
@@ -279,7 +314,7 @@ export default function InboxPage() {
   const isConnected = instances.find(i => i.instanceName === activeInstance)?.connected
 
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%', background: 'var(--surface2)' }}>
+    <div style={{ display: 'flex', height: '100%', width: '100%', background: 'var(--wa-bg)' }}>
       <input ref={fileInputRef} type="file" onChange={e => {
         const file = e.target.files?.[0]; if (!file || !activeInstance || !selectedChat) return
         const jid = selectedChat.remoteJid || selectedChat.id; setSending(true)
@@ -292,11 +327,13 @@ export default function InboxPage() {
       }} style={{ display: 'none' }} />
 
       {/* ── Chat List ── */}
-      <div style={{ width: '25%', minWidth: 300, maxWidth: 380, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
-        <div style={{ height: 60, padding: '0 16px', background: 'var(--surface-header)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', position: 'relative' }}>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>WhatsApp</span>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <IconBtn icon={RefreshCw} onClick={fetchInstances} spinning={loadingChats} />
+      <div style={{ width: '30%', minWidth: 340, maxWidth: 420, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--wa-sidebar)' }}>
+        <div style={{ height: 60, padding: '0 16px', background: 'var(--wa-header)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--wa-active)', overflow: 'hidden' }}>
+             {user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User color="var(--muted)" style={{ margin: 10 }} />}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <IconBtn icon={RefreshCw} onClick={handleDeepSync} spinning={loadingChats} />
             <IconBtn icon={MoreVertical} onClick={() => setHeaderMenu(v => !v)} />
           </div>
         </div>
@@ -307,7 +344,7 @@ export default function InboxPage() {
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loadingChats && isConnected ? (
+          {loadingChats && isConnected && chats.length === 0 ? (
              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}><Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 12px' }} /><div style={{ fontSize: 13 }}>Connecting...</div></div>
           ) : !isConnected && activeInstance ? (
              <div style={{ padding: 30, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Device offline.<br /><a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Reconnect →</a></div>
@@ -315,32 +352,52 @@ export default function InboxPage() {
             const name = getChatName(c).toLowerCase(); const num = (c.remoteJid || c.id || '').split('@')[0]; const s = search.toLowerCase()
             return !search || name.includes(s) || num.includes(s)
           })).map(chat => (
-            <div key={chat.remoteJid || chat.id} onClick={() => setSelectedChat(chat)} style={{ display: 'flex', cursor: 'pointer', alignItems: 'center', background: (selectedChat && (selectedChat.remoteJid || selectedChat.id) === (chat.remoteJid || chat.id)) ? 'var(--surface2)' : 'transparent', transition: 'background 0.1s' }}>
-              <div style={{ padding: '8px 12px' }}><Avatar name={getChatName(chat)} url={chat.profilePicUrl} jid={chat.remoteJid || chat.id} size={46} /></div>
-              <div style={{ flex: 1, padding: '12px 12px 12px 0', borderBottom: '1px solid var(--border-strong)', minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getChatName(chat)}</span><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtTime(chat.conversationTimestamp)}</span></div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.lastMessage?.conversation || '📎 Media'}</p>
-              </div>
+            <div key={chat.remoteJid || chat.id} onClick={() => setSelectedChat(chat)} style={{ display: 'flex', cursor: 'pointer', alignItems: 'center', background: (selectedChat && (selectedChat.remoteJid || selectedChat.id) === (chat.remoteJid || chat.id)) ? 'var(--wa-active)' : 'transparent', transition: 'background 0.1s' }} onMouseEnter={e => !selectedChat && (e.currentTarget.style.background = 'var(--wa-hover)')} onMouseLeave={e => !selectedChat && (e.currentTarget.style.background = 'transparent')}>
+              <div style={{ padding: '8px 15px' }}><Avatar name={getChatName(chat)} url={chat.profilePicUrl} jid={chat.remoteJid || chat.id} size={50} /></div>
+                <div style={{ flex: 1, padding: '12px 15px 12px 0', borderBottom: '1px solid var(--border)', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--wa-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {getChatName(chat)}
+                    </span>
+                    <span style={{ fontSize: 12, color: chat.unreadCount > 0 ? 'var(--wa-accent)' : 'var(--wa-text-muted)' }}>{fmtTime(chat.conversationTimestamp)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <p style={{ fontSize: 14, color: 'var(--wa-text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {chat.lastMessage?.conversation || chat.lastMessage?.extendedTextMessage?.text || (chat.unreadCount ? 'New message(s)' : 'Tap to view chat')}
+                    </p>
+                    {chat.unreadCount > 0 && (
+                      <div style={{ background: 'var(--wa-accent)', color: '#000', borderRadius: '50%', minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, padding: '0 4px' }}>
+                        {chat.unreadCount}
+                      </div>
+                    )}
+                  </div>
+                </div>
             </div>
           ))}
         </div>
       </div>
 
       {/* ── Chat View ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--surface2)' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0b141a', position: 'relative' }}>
         {selectedChat ? (
           <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }}>
-                <div style={{ height: 60, padding: '0 16px', background: 'var(--surface-header)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} jid={selectedChat.remoteJid || selectedChat.id} size={40} /><div><div style={{ fontSize: 16, fontWeight: 600 }}>{getChatName(selectedChat)}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>last active recently</div></div></div>
-                  <IconBtn icon={MoreVertical} />
+                <div style={{ height: 60, padding: '0 16px', background: 'var(--wa-header)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 15, cursor: 'pointer' }} onClick={() => setShowSidebar(!showSidebar)}>
+                    <Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} jid={selectedChat.remoteJid || selectedChat.id} size={40} />
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 400, color: 'var(--wa-text)' }}>{getChatName(selectedChat)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--wa-text-muted)' }}>click to info {showSidebar ? '▼' : '►'}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 15 }}><IconBtn icon={Search} /><IconBtn icon={MoreVertical} /></div>
                 </div>
-                <div style={{ flex: 1, padding: '16px 6%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="wa-chat-bg" style={{ flex: 1, padding: '20px 7%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {loadingMessages && <div style={{ textAlign: 'center', padding: 10 }}><Loader2 className="animate-spin" size={16} color="var(--accent)" /></div>}
                   {messages.map(msg => (
-                    <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '75%', padding: '8px 12px', borderRadius: 10, background: msg.key?.fromMe ? 'var(--bubble-out)' : 'var(--bubble-in)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', fontSize: 14, position: 'relative' }}>
-                      {msg.message?.conversation || '📎 Media'}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
+                    <div key={msg.key?.id} style={{ alignSelf: msg.key?.fromMe ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '6px 10px 8px', borderRadius: 8, background: msg.key?.fromMe ? 'var(--wa-bubble-out)' : 'var(--wa-bubble-in)', boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)', fontSize: 14.2, position: 'relative', color: 'var(--wa-text)' }}>
+                      <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.message?.conversation || msg.message?.extendedTextMessage?.text || '📎 Media'}</div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: -4, fontSize: 11, color: msg.key?.fromMe ? 'rgba(255,255,255,0.6)' : 'var(--wa-text-muted)', textAlign: 'right', float: 'right', marginLeft: 8, position: 'relative', top: 6 }}>
                         <span>{fmtTime(msg.messageTimestamp)}</span>
                         {msg.key?.fromMe && <MessageStatus status={msg.status} />}
                       </div>
@@ -348,22 +405,26 @@ export default function InboxPage() {
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
-                <div style={{ padding: '10px 16px', background: 'var(--surface-header)', borderTop: '1px solid var(--border)' }}>
-                  <form onSubmit={handleSend} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                <div style={{ padding: '5px 10px', background: 'var(--wa-header)', display: 'flex', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 5 }}>
                     <IconBtn icon={Smile} onClick={() => setEmojiOpen(!emojiOpen)} />
                     <IconBtn icon={Paperclip} onClick={() => fileInputRef.current?.click()} />
-                    <input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type a message" style={{ flex: 1, padding: '10px 16px', borderRadius: 24, border: 'none', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
-                    {messageText.trim() ? <button type="submit" style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><SendIcon size={24} /></button> : <IconBtn icon={Mic} />}
+                  </div>
+                  <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', margin: '5px 10px' }}>
+                    <input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type a message" style={{ width: '100%', padding: '9px 15px', borderRadius: 8, border: 'none', background: 'var(--wa-active)', color: 'var(--wa-text)', outline: 'none', fontSize: 15 }} />
                   </form>
+                  {messageText.trim() ? <button type="submit" onClick={handleSend} style={{ background: 'none', border: 'none', color: 'var(--wa-text-muted)', cursor: 'pointer', padding: 10 }}><SendIcon size={24} /></button> : <IconBtn icon={Mic} />}
                 </div>
              </div>
 
              {/* ── CRM Sidebar ── */}
-             <div style={{ width: 300, background: 'var(--surface)', display: 'flex', flexDirection: 'column', padding: 24, boxSizing: 'border-box', overflowY: 'auto' }}>
-                <div style={{ textAlign: 'center', marginBottom: 24 }}>
+             {showSidebar && (
+             <div style={{ width: 300, background: 'var(--surface)', display: 'flex', flexDirection: 'column', padding: 24, boxSizing: 'border-box', overflowY: 'auto', borderLeft: '1px solid var(--border)' }}>
+                <div style={{ textAlign: 'center', marginBottom: 24, position: 'relative' }}>
+                   <button onClick={() => setShowSidebar(false)} style={{ position: 'absolute', top: 0, left: 0, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}><X size={20} /></button>
                    <Avatar name={getChatName(selectedChat)} url={selectedChat.profilePicUrl} jid={selectedChat.remoteJid || selectedChat.id} size={84} />
-                   <h3 style={{ margin: '16px 0 4px', fontSize: 18, fontFamily: 'Syne' }}>{getChatName(selectedChat)}</h3>
-                   <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{(selectedChat.remoteJid || selectedChat.id).split('@')[0]}</div>
+                   <h3 style={{ margin: '16px 0 4px', fontSize: 18, fontFamily: 'Syne' }}>{formatContactName(getChatName(selectedChat))}</h3>
+                   <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>+{(selectedChat.remoteJid || selectedChat.id).split('@')[0]}</div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -407,6 +468,7 @@ export default function InboxPage() {
                    </div>
                 </div>
              </div>
+             )}
           </div>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>

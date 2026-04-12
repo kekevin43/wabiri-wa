@@ -1,12 +1,22 @@
-import { useState, useRef, useEffect } from 'react'
-import { User, Plus, Search, Filter, MoreVertical, Tag as TagIcon, Mail, Phone, Download, X, Trash2, Upload, CheckCircle2, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { User, Plus, Search, Filter, MoreVertical, Tag as TagIcon, Mail, Phone, Download, X, Trash2, Upload, CheckCircle2, Loader2, RefreshCw, Check, ChevronLeft, ChevronRight, Edit } from 'lucide-react'
 import { Card, Button, Badge, PageHeader, Input } from '../../components/ui'
 import { supabase } from '../../lib/supabase'
+import { evolution } from '../../lib/evolution'
 import { useAuth } from '../../lib/AuthContext'
 
-// ── Add Contact Modal ─────────────────────────────────────────────────────────
-function AddContactModal({ onClose, onSave }) {
-  const [form, setForm] = useState({ name: '', phone: '', tagInput: '', tags: [] })
+function AddContactModal({ onClose, onSave, editingContact }) {
+  const [form, setForm] = useState({ 
+    full_name: editingContact?.full_name || '', 
+    phone: editingContact?.phone || '', 
+    email: editingContact?.email || '',
+    source: editingContact?.source || '',
+    year_added: editingContact?.year_added || new Date().getFullYear(),
+    product_interest: editingContact?.product_interest || '',
+    remarks: editingContact?.remarks || '',
+    tagInput: '', 
+    tags: editingContact?.tags || [] 
+  })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -17,21 +27,25 @@ function AddContactModal({ onClose, onSave }) {
     set('tags', [...form.tags, tag])
     set('tagInput', '')
   }
-
   const removeTag = (t) => set('tags', form.tags.filter(x => x !== t))
 
   const handleSave = async () => {
-    if (!form.name.trim()) return setError('Name is required')
-    if (!form.phone.trim()) return setError('Phone number is required')
+    if (!form.full_name.trim()) return setError('Name is required')
+    if (!form.phone.trim()) return setError('Phone is required')
     
     setSaving(true)
     setError('')
     try {
       await onSave({ 
-        name: form.name.trim(), 
-        phone: form.phone.trim(), 
+        full_name: form.full_name.trim(), 
+        phone: form.phone.replace(/\D/g, ''), 
+        email: form.email.trim(),
+        source: form.source.trim(),
+        year_added: Number(form.year_added) || new Date().getFullYear(),
+        product_interest: form.product_interest.trim(),
+        remarks: form.remarks.trim(),
         tags: form.tags 
-      })
+      }, editingContact?.id)
       onClose()
     } catch (e) {
       setError(e.message)
@@ -41,89 +55,53 @@ function AddContactModal({ onClose, onSave }) {
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-      backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', zIndex: 200,
-    }}>
-      <div className="fade-up" style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 20, padding: '32px', width: 460,
-      }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }}>
+      <div className="fade-up" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '32px', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>Add Contact</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
-            <X size={20} />
-          </button>
+          <h2 style={{ margin: 0, fontSize: 20 }}>{editingContact ? 'Edit Contact' : 'Add Contact'}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={20} /></button>
         </div>
 
-        {error && (
-          <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{error}</div>}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Input label="Full Name *" placeholder="e.g. John Doe" value={form.name} onChange={e => { setError(''); set('name', e.target.value) }} />
-          <Input label="Phone Number *" placeholder="+254 7XX XXX XXX" value={form.phone} onChange={e => { setError(''); set('phone', e.target.value) }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+          <div style={{ gridColumn: '1 / -1' }}><Input label="Full Name *" placeholder="e.g. John Doe" value={form.full_name} onChange={e => { setError(''); set('full_name', e.target.value) }} /></div>
+          <div style={{ gridColumn: '1 / -1' }}><Input label="Phone Number * (E.164 without +)" placeholder="2547XXXXXXXX" value={form.phone} onChange={e => { setError(''); set('phone', e.target.value) }} /></div>
+          
+          <Input label="Email" placeholder="email@domain.com" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+          <Input label="Source" placeholder="e.g. Facebook, Cold Call" value={form.source} onChange={e => set('source', e.target.value)} />
+          <Input label="Product Interest" placeholder="e.g. Ruiru Plots" value={form.product_interest} onChange={e => set('product_interest', e.target.value)} />
+          <Input label="Year Added" type="number" placeholder="2024" value={form.year_added} onChange={e => set('year_added', e.target.value)} />
+          
+          <div style={{ gridColumn: '1 / -1' }}><Input label="Remarks" placeholder="Additional notes..." value={form.remarks} onChange={e => set('remarks', e.target.value)} /></div>
 
-          {/* Tags */}
-          <div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, display: 'block', marginBottom: 6 }}>Tags</label>
-            {form.tags.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {form.tags.map(tag => (
-                  <span key={tag} style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    background: 'var(--accent-glow)', color: 'var(--accent)',
-                    padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-                  }}>
-                    <TagIcon size={10} /> {tag}
-                    <X size={11} style={{ cursor: 'pointer', marginLeft: 2 }} onClick={() => removeTag(tag)} />
-                  </span>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={form.tagInput}
-                onChange={e => set('tagInput', e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="hot-lead, follow-up… (press Enter)"
-                style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, outline: 'none' }}
-              />
-              <Button variant="ghost" size="sm" onClick={addTag} disabled={!form.tagInput.trim()}>Add</Button>
-            </div>
+             {form.tags.length > 0 && (
+               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                 {form.tags.map(tag => (
+                   <span key={tag} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--accent-glow)', color: 'var(--accent)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>
+                     <TagIcon size={10} /> {tag} <X size={11} style={{ cursor: 'pointer', marginLeft: 2 }} onClick={() => removeTag(tag)} />
+                   </span>
+                 ))}
+               </div>
+             )}
+             <div style={{ display: 'flex', gap: 8 }}>
+               <input value={form.tagInput} onChange={e => set('tagInput', e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} placeholder="hot-lead (press Enter)" style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, outline: 'none' }} />
+               <Button variant="ghost" size="sm" onClick={addTag} disabled={!form.tagInput.trim()}>Add</Button>
+             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 28 }}>
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />} 
-            {saving ? 'Saving...' : 'Save Contact'}
-          </Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />} {saving ? 'Saving...' : 'Save'}</Button>
         </div>
       </div>
     </div>
   )
 }
 
-// ── CSV Import  ───────────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split('\n').filter(Boolean)
-  if (lines.length < 2) return []
-  return lines.slice(1).map((line) => {
-    const [name, phone, tagsStr] = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''))
-    return {
-      name: name || '',
-      phone: phone || '',
-      tags: tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [],
-    }
-  }).filter(c => c.name && c.phone)
-}
-
-// ── Bulk Tag Modal ────────────────────────────────────────────────────────────
 function BulkTagModal({ onClose, onApply, count }) {
   const [tag, setTag] = useState('')
   return (
@@ -141,56 +119,139 @@ function BulkTagModal({ onClose, onApply, count }) {
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(Boolean)
+  if (lines.length < 2) return []
+
+  const headers = lines[0].split(',').map(s => s.trim().toLowerCase().replace(/^"|"$/g, ''))
+  
+  const getCol = (possible) => {
+    let index = -1;
+    for (const name of possible) {
+      index = headers.findIndex(h => h.includes(name))
+      if(index !== -1) break;
+    }
+    return index;
+  }
+  
+  const nameIdx = getCol(['name', 'full name', 'fullname'])
+  const phoneIdx = getCol(['phone', 'number', 'mobile'])
+  const emailIdx = getCol(['email'])
+  const sourceIdx = getCol(['source'])
+  const yearIdx = getCol(['year'])
+  const productIdx = getCol(['product', 'interest'])
+  const remarksIdx = getCol(['remark', 'note'])
+  const tagIdx = getCol(['tag'])
+
+  return lines.slice(1).map((line) => {
+    const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.trim().replace(/^"|"$/g, ''))
+    return {
+      full_name: nameIdx >= 0 ? parts[nameIdx] : parts[0] || '',
+      phone: phoneIdx >= 0 ? parts[phoneIdx].replace(/\D/g, '') : parts[1]?.replace(/\D/g, '') || '',
+      email: emailIdx >= 0 ? parts[emailIdx] : '',
+      source: sourceIdx >= 0 ? parts[sourceIdx] : '',
+      year_added: yearIdx >= 0 ? parseInt(parts[yearIdx]) || new Date().getFullYear() : new Date().getFullYear(),
+      product_interest: productIdx >= 0 ? parts[productIdx] : '',
+      remarks: remarksIdx >= 0 ? parts[remarksIdx] : '',
+      tags: tagIdx >= 0 && parts[tagIdx] ? parts[tagIdx].split(';').map(t => t.trim()).filter(Boolean) : [],
+    }
+  }).filter(c => c.full_name && c.phone)
+}
+
+const PAGE_SIZE = 40
+
 export default function ContactsPage() {
   const { user } = useAuth()
   const [contacts, setContacts] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(0)
+  
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [searchValue, setSearchValue] = useState('') // debounced
+  
   const [filterTag, setFilterTag] = useState('')
+  const [filterSource, setFilterSource] = useState('')
+  
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showModal, setShowModal] = useState(false)
+  const [editingContact, setEditingContact] = useState(null)
   const [showBulkTag, setShowBulkTag] = useState(false)
+  
   const [menuId, setMenuId] = useState(null)
+  const [importing, setImporting] = useState(false)
   const fileRef = useRef(null)
 
-  const fetchContacts = async () => {
+  // Fetch unique properties for filters
+  const [uniqueTags, setUniqueTags] = useState([])
+  const [uniqueSources, setUniqueSources] = useState([])
+
+  const fetchFilters = useCallback(async () => {
+    if (!user) return
+    // Simple extraction for demo: In large dbs you might need a separate table or aggregate query.
+    // For now we'll fetch distinct values using standard select (limitation in Supabase JS without RPC)
+    // Actually, skipping exhaustive fetch for 100k, we just let user type or rely on basic common filters.
+    // We'll fetch a small sample for the dropdowns.
+    const { data } = await supabase.from('contacts').select('tags, source').eq('user_id', user.id).limit(1000)
+    if (data) {
+      const tags = new Set()
+      const sources = new Set()
+      data.forEach(c => {
+         if (c.tags) c.tags.forEach(t => tags.add(t))
+         if (c.source) sources.add(c.source)
+      })
+      setUniqueTags(Array.from(tags).sort())
+      setUniqueSources(Array.from(sources).filter(Boolean).sort())
+    }
+  }, [user])
+
+  const fetchContacts = useCallback(async () => {
+    if (!user) return
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
+      let query = supabase.from('contacts').select('*', { count: 'exact' }).eq('user_id', user.id)
+      
+      if (searchValue) {
+        query = query.or(`full_name.ilike.%${searchValue}%,phone.ilike.%${searchValue}%`)
+      }
+      if (filterTag) {
+        query = query.contains('tags', [filterTag])
+      }
+      if (filterSource) {
+         query = query.eq('source', filterSource)
+      }
+
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+      
+      const { data, count, error } = await query
         .order('created_at', { ascending: false })
+        .range(from, to)
       
       if (error) throw error
       setContacts(data || [])
+      setTotalCount(count || 0)
     } catch (e) {
       console.error('Failed to fetch contacts', e)
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, page, searchValue, filterTag, filterSource])
 
   useEffect(() => {
-    if (user) fetchContacts()
-  }, [user])
+    const t = setTimeout(() => { setSearchValue(search); setPage(0) }, 400)
+    return () => clearTimeout(t)
+  }, [search])
 
-  // Extract all unique tags for the filter dropdown
-  const allTags = Array.from(new Set(contacts.flatMap(c => c.tags || []))).sort()
+  useEffect(() => {
+    fetchContacts()
+  }, [fetchContacts])
 
-  const filtered = contacts.filter(c => {
-    const matchesSearch = !search ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      (c.tags && c.tags.some(t => t.toLowerCase().includes(search.toLowerCase())))
-    
-    const matchesTag = !filterTag || (c.tags && c.tags.includes(filterTag))
-    
-    return matchesSearch && matchesTag
-  })
+  useEffect(() => {
+    fetchFilters()
+  }, [fetchFilters])
 
-  const toggleSelect = (id) => {
+  const toggleSelect = id => {
     const next = new Set(selectedIds)
     if (next.has(id)) next.delete(id)
     else next.add(id)
@@ -198,103 +259,100 @@ export default function ContactsPage() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) {
+    if (selectedIds.size === contacts.length && contacts.length > 0) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filtered.map(c => c.id)))
+      setSelectedIds(new Set(contacts.map(c => c.id)))
     }
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} contacts?`)) return
+    if (!confirm(`Delete ${selectedIds.size} contacts? This cannot be undone.`)) return
     const ids = Array.from(selectedIds)
-    const { error } = await supabase.from('contacts').delete().in('id', ids)
-    if (error) return alert('Bulk delete failed: ' + error.message)
-    setContacts(prev => prev.filter(c => !selectedIds.has(c.id)))
+    
+    // Batch delete
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500)
+      await supabase.from('contacts').delete().in('id', chunk)
+    }
+    
+    setPage(0)
+    fetchContacts()
     setSelectedIds(new Set())
   }
 
   const handleBulkTag = async (tagName) => {
+    const tag = tagName.toLowerCase().replace(/\s+/g, '-')
     const ids = Array.from(selectedIds)
-    const toUpdate = contacts.filter(c => selectedIds.has(c.id)).map(c => {
-      const currentTags = c.tags || []
-      const nextTags = Array.from(new Set([...currentTags, tagName]))
-      return { ...c, tags: nextTags }
-    })
-
-    // Supabase multi-row update is tricky without a stored procedure, 
-    // but for small batches we can just loop or use a single request if the structure allows.
-    // Actually, we'll just update them one by one for safety or use a single RPC if available.
-    // Optimal: Promise.all for now as contact lists usually < 100 for bulk tagging.
-    try {
-      await Promise.all(toUpdate.map(c => 
-        supabase.from('contacts').update({ tags: c.tags }).eq('id', c.id)
-      ))
-      setContacts(prev => prev.map(c => {
-        const updated = toUpdate.find(u => u.id === c.id)
-        return updated || c
-      }))
-      setSelectedIds(new Set())
-    } catch (e) {
-      alert('Failed to update tags: ' + e.message)
+    
+    // Fallback: update individually for safety, in production an RPC function is better.
+    // To handle large numbers efficiently:
+    setLoading(true)
+    for (let id of ids) {
+       const contact = contacts.find(c => c.id === id)
+       if (contact && !contact.tags?.includes(tag)) {
+          const nextTags = [...(contact.tags || []), tag]
+          await supabase.from('contacts').update({ tags: nextTags }).eq('id', id)
+       }
     }
+    await fetchContacts()
+    setSelectedIds(new Set())
+    setLoading(false)
   }
 
-  const handleAdd = async (newContact) => {
-    // 1. Check for duplicate
-    const num = newContact.phone.replace(/\D/g, '')
-    const { data: existing } = await supabase.from('contacts').select('id').eq('user_id', user.id).eq('phone', num).maybeSingle()
-    if (existing) {
-       if (!confirm('This phone number already exists. Update it?')) return
-       const { data: updated, error } = await supabase.from('contacts').update(newContact).eq('id', existing.id).select()
+  const handleSaveContact = async (contactData, id) => {
+    if (id) {
+       const { error } = await supabase.from('contacts').update(contactData).eq('id', id)
        if (error) throw error
-       setContacts(prev => prev.map(c => c.id === existing.id ? updated[0] : c))
     } else {
-       const { data, error } = await supabase
-         .from('contacts')
-         .insert([{ ...newContact, phone: num, user_id: user.id }])
-         .select()
+       // Upsert logic for new creations
+       const { error } = await supabase.from('contacts').upsert([{ ...contactData, user_id: user.id }], { onConflict: 'user_id, phone' })
        if (error) throw error
-       if (data) setContacts(prev => [data[0], ...prev])
     }
+    fetchContacts()
   }
 
   const handleDelete = async (id) => {
     if (!confirm('Remove this contact?')) return
-    const { error } = await supabase
-      .from('contacts')
-      .delete()
-      .eq('id', id)
-    
+    const { error } = await supabase.from('contacts').delete().eq('id', id)
     if (error) return alert('Failed to delete contact: ' + error.message)
-    setContacts(prev => prev.filter(c => c.id !== id))
+    fetchContacts()
     setMenuId(null)
   }
 
   const handleCSVImport = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setImporting(true)
+    
     const reader = new FileReader()
     reader.onload = async (ev) => {
-      const parsed = parseCSV(ev.target.result)
-      if (parsed.length === 0) return alert('No valid contacts found.')
-      
-      const toUpsert = parsed.map(c => ({ 
-        ...c, 
-        phone: c.phone.replace(/\D/g, ''),
-        user_id: user.id 
-      }))
+      try {
+        const parsed = parseCSV(ev.target.result)
+        if (parsed.length === 0) throw new Error('No valid contacts found.')
+        
+        const toUpsert = parsed.map(c => ({ 
+          ...c, 
+          user_id: user.id 
+        }))
 
-      // Use upsert to handle duplicates on (user_id, phone)
-      const { data, error } = await supabase.from('contacts').upsert(toUpsert, { onConflict: 'user_id, phone' }).select()
-      
-      if (error) return alert('Failed to import contacts: ' + error.message)
-      if (data) {
-        // Refresh full list to handle potential name updates
-        const { data: all } = await supabase.from('contacts').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
-        setContacts(all || [])
+        // Batch upserts of 1000 items to not hit payload limits.
+        const BATCH_SIZE = 1000
+        for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
+            const chunk = toUpsert.slice(i, i + BATCH_SIZE)
+            const { error } = await supabase.from('contacts').upsert(chunk, { onConflict: 'user_id, phone' })
+            if (error) throw error
+        }
+        
+        alert(`✅ Successfully imported/updated ${toUpsert.length} contacts`)
+        setPage(0)
+        fetchContacts()
+        fetchFilters()
+      } catch (err) {
+        alert('Import failed: ' + err.message)
+      } finally {
+        setImporting(false)
       }
-      alert(`✅ Processed ${toUpsert.length} contacts`)
     }
     reader.readAsText(file)
     e.target.value = ''
@@ -302,212 +360,168 @@ export default function ContactsPage() {
 
   const handleExport = () => {
     const listToExport = selectedIds.size > 0 ? contacts.filter(c => selectedIds.has(c.id)) : contacts
-    if (listToExport.length === 0) return alert('No contacts to export.')
-    const headers = ['Name', 'Phone', 'Tags', 'Last Active']
-    const rows = listToExport.map(c => [c.name, c.phone, (c.tags || []).join(';'), c.last_active])
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    if (listToExport.length === 0) return alert('No contacts to export on this page.')
+    
+    const headers = ['Full Name', 'Phone', 'Email', 'Source', 'Product Interest', 'Year Added', 'Tags', 'Remarks']
+    const rows = listToExport.map(c => [
+       c.full_name, c.phone, c.email || '', c.source || '', 
+       c.product_interest || '', c.year_added || '', 
+       (c.tags || []).join(';'), c.remarks || ''
+    ])
+    const csv = [headers, ...rows].map(r => r.map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n')
+    
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'wabiri_contacts.csv'; a.click()
+    a.href = url; a.download = 'wabiri_contacts_export.csv'; a.click()
     URL.revokeObjectURL(url)
   }
 
-  const initial = (name) => (name || '?').charAt(0).toUpperCase()
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   return (
     <div className="fade-up" onClick={() => menuId && setMenuId(null)} style={{ paddingBottom: 100 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-        <PageHeader title="Contacts" subtitle={`${contacts.length} contact${contacts.length !== 1 ? 's' : ''}`} style={{ marginBottom: 0 }} />
+        <PageHeader title="Contacts Manager" subtitle={`${totalCount} total contact${totalCount !== 1 ? 's' : ''}`} style={{ marginBottom: 0 }} />
         <div style={{ display: 'flex', gap: 10 }}>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleCSVImport} style={{ display: 'none' }} />
-          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} disabled={loading}>
-            <Upload size={15} /> Import CSV
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} disabled={loading || importing}>
+            {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Import CSV
           </Button>
           <Button variant="ghost" size="sm" onClick={handleExport} disabled={loading}>
-            <Download size={15} /> {selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export CSV'}
+            <Download size={15} /> Export Page
           </Button>
-          <Button size="sm" onClick={() => setShowModal(true)} disabled={loading}>
+          <Button size="sm" onClick={() => { setEditingContact(null); setShowModal(true) }} disabled={loading}>
             <Plus size={15} /> Add Contact
           </Button>
         </div>
       </div>
 
-      {/* Search + Filter bar */}
+      {/* Filter Bar */}
       <Card style={{ marginBottom: 24, padding: '14px 18px' }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ flex: 1, position: 'relative' }}>
-            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, phone or tag…"
-              style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 14, outline: 'none', boxSizing: 'border-box', color: 'var(--text)' }}
-            />
-            {search && <X size={14} onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'var(--muted)' }} />}
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Filter size={14} color="var(--muted)" />
-            <select
-              value={filterTag}
-              onChange={e => setFilterTag(e.target.value)}
-              style={{
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 8, padding: '8px 12px', fontSize: 13,
-                color: filterTag ? 'var(--accent)' : 'var(--text)',
-                fontFamily: 'Outfit', outline: 'none', cursor: 'pointer'
-              }}
-            >
-              <option value="">All Tags</option>
-              {allTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-            </select>
+             <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or phone..." style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 14, outline: 'none', color: 'var(--text)' }} />
+             {search && <X size={14} onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'var(--muted)' }} />}
           </div>
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+             <select value={filterSource} onChange={e => {setFilterSource(e.target.value); setPage(0)}} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: filterSource ? 'var(--accent)' : 'var(--text)', outline: 'none', cursor: 'pointer' }}>
+                <option value="">All Sources</option>
+                {uniqueSources.map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+             <select value={filterTag} onChange={e => {setFilterTag(e.target.value); setPage(0)}} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: filterTag ? 'var(--accent)' : 'var(--text)', outline: 'none', cursor: 'pointer' }}>
+                <option value="">All Tags</option>
+                {uniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
+             </select>
+          </div>
           
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
           <Button variant="ghost" size="sm" onClick={toggleSelectAll} style={{ padding: '8px 12px' }}>
-            {selectedIds.size === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All'}
+             {selectedIds.size === contacts.length && contacts.length > 0 ? 'Deselect Page' : 'Select Page'}
           </Button>
         </div>
       </Card>
 
-      {/* Contact Grid */}
-      {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--muted)' }}>
-          <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto 16px' }} />
-          <p>Loading your contacts...</p>
+      {/* Modern Table Layout for CRM */}
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 800 }}>
+              <thead>
+                 <tr style={{ background: 'var(--surface2)', color: 'var(--muted)', fontSize: 12, textTransform: 'uppercase' }}>
+                    <th style={{ padding: '16px 20px', width: 40 }}>
+                       <div style={{ width: 18, height: 18, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedIds.size === contacts.length && contacts.length > 0 ? 'var(--accent)' : 'transparent' }} onClick={toggleSelectAll}>
+                          {selectedIds.size === contacts.length && contacts.length > 0 && <Check size={12} color="#fff" strokeWidth={4} />}
+                       </div>
+                    </th>
+                    <th style={{ padding: '16px 20px', fontWeight: 600 }}>Contact Info</th>
+                    <th style={{ padding: '16px 20px', fontWeight: 600 }}>Source / Interest</th>
+                    <th style={{ padding: '16px 20px', fontWeight: 600 }}>Tags</th>
+                    <th style={{ padding: '16px 20px', fontWeight: 600, width: 80 }}>Actions</th>
+                 </tr>
+              </thead>
+              <tbody>
+                 {loading && contacts.length === 0 ? (
+                    <tr><td colSpan={5} style={{ padding: '60px 0', textAlign: 'center', color: 'var(--muted)' }}><Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 12px' }}/>Loading contacts...</td></tr>
+                 ) : contacts.length === 0 ? (
+                    <tr><td colSpan={5} style={{ padding: '60px 0', textAlign: 'center', color: 'var(--muted)' }}>No contacts match your criteria.</td></tr>
+                 ) : contacts.map(c => (
+                    <tr key={c.id} style={{ borderTop: '1px solid var(--border)', transition: 'background 0.1s', background: selectedIds.has(c.id) ? 'var(--wa-active)' : 'transparent' }} onClick={() => toggleSelect(c.id)}>
+                       <td style={{ padding: '16px 20px' }} onClick={e => e.stopPropagation()}>
+                          <div style={{ width: 18, height: 18, border: selectedIds.has(c.id) ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedIds.has(c.id) ? 'var(--accent)' : 'transparent' }} onClick={() => toggleSelect(c.id)}>
+                             {selectedIds.has(c.id) && <Check size={12} color="#fff" strokeWidth={4} />}
+                          </div>
+                       </td>
+                       <td style={{ padding: '16px 20px' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                             {c.full_name} {c.year_added && <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--surface2)', borderRadius: 4, color: 'var(--muted)' }}>{c.year_added}</span>}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                             <Phone size={12}/> +{c.phone} {c.email && <><Mail size={12} style={{ marginLeft: 6 }}/> {c.email}</>}
+                          </div>
+                       </td>
+                       <td style={{ padding: '16px 20px', fontSize: 13, color: 'var(--muted)' }}>
+                          {c.source && <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>{c.source}</span></div>}
+                          {c.product_interest && <div>Interest: <span style={{ color: 'var(--accent)' }}>{c.product_interest}</span></div>}
+                       </td>
+                       <td style={{ padding: '16px 20px' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                             {c.tags?.slice(0, 3).map(tag => <Badge key={tag} color="muted" style={{ fontSize: 11, padding: '2px 8px' }}>{tag}</Badge>)}
+                             {c.tags?.length > 3 && <Badge color="muted" style={{ fontSize: 11, padding: '2px 8px' }}>+{c.tags.length - 3}</Badge>}
+                          </div>
+                       </td>
+                       <td style={{ padding: '16px 20px' }} onClick={e => e.stopPropagation()}>
+                          <div style={{ position: 'relative' }}>
+                             <button onClick={() => setMenuId(menuId === c.id ? null : c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, borderRadius: 6 }}><MoreVertical size={17} /></button>
+                             {menuId === c.id && (
+                                <div style={{ position: 'absolute', top: 28, right: 0, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 0', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                                   <div style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} onClick={() => { setEditingContact(c); setShowModal(true); setMenuId(null) }}>
+                                      <Edit size={14} /> Edit Contact
+                                   </div>
+                                   <div style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--danger)' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} onClick={() => handleDelete(c.id)}>
+                                      <Trash2 size={14} /> Delete
+                                   </div>
+                                </div>
+                             )}
+                          </div>
+                       </td>
+                    </tr>
+                 ))}
+              </tbody>
+           </table>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
-          {filtered.length === 0 ? (
-            <div style={{
-              gridColumn: '1 / -1', padding: '64px 20px', textAlign: 'center',
-              color: 'var(--muted)', background: 'var(--surface)',
-              borderRadius: 16, border: '1px dashed var(--border)',
-            }}>
-              <User size={36} style={{ margin: '0 auto 14px', display: 'block', opacity: 0.4 }} />
-              {search || filterTag
-                ? <p style={{ margin: 0 }}>No contacts match your filters.</p>
-                : <> 
-                    <p style={{ margin: '0 0 16px' }}>No contacts yet.</p>
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                      <Button size="sm" onClick={() => setShowModal(true)}><Plus size={13} /> Add Contact</Button>
-                      <Button size="sm" variant="ghost" onClick={() => fileRef.current?.click()}><Upload size={13} /> Import CSV</Button>
-                    </div>
-                  </>
-              }
-            </div>
-          ) : filtered.map(contact => (
-            <Card 
-              key={contact.id} 
-              onClick={() => toggleSelect(contact.id)}
-              style={{ 
-                display: 'flex', flexDirection: 'column', gap: 14, 
-                position: 'relative', cursor: 'pointer',
-                border: selectedIds.has(contact.id) ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: selectedIds.has(contact.id) ? 'var(--accent-glow)' : 'var(--surface)',
-                transform: selectedIds.has(contact.id) ? 'scale(1.02)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{
-                    width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
-                    background: selectedIds.has(contact.id) ? 'var(--accent)' : 'var(--accent-glow)',
-                    color: selectedIds.has(contact.id) ? '#fff' : 'var(--accent)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, fontWeight: 700, fontFamily: 'Syne',
-                  }}>
-                    {selectedIds.has(contact.id) ? <CheckCircle2 size={24} /> : initial(contact.name)}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>{contact.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'JetBrains Mono' }}>{contact.phone}</div>
-                  </div>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <button
-                    onClick={e => { e.stopPropagation(); setMenuId(menuId === contact.id ? null : contact.id) }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, borderRadius: 6 }}
-                  >
-                    <MoreVertical size={17} />
-                  </button>
-                  {menuId === contact.id && (
-                    <div style={{
-                      position: 'absolute', top: 28, right: 0, zIndex: 100,
-                      background: 'var(--surface)', border: '1px solid var(--border)',
-                      borderRadius: 10, padding: '4px 0', minWidth: 160,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                    }}>
-                      <div style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--danger)' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }}
-                      >
-                        <Trash2 size={14} /> Delete Contact
-                      </div>
-                    </div>
-                  )}
-                </div>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+           <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>Showing {page * PAGE_SIZE + 1} to {Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                 <Button variant="ghost" size="sm" onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}><ChevronLeft size={14} /> Prev</Button>
+                 <Button variant="ghost" size="sm" onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>Next <ChevronRight size={14}/></Button>
               </div>
-
-              {contact.tags && contact.tags.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {contact.tags.map(tag => (
-                    <Badge key={tag} color={selectedIds.has(contact.id) ? 'accent' : 'muted'}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <TagIcon size={9} /> {tag}
-                      </span>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)' }}>
-                <span>Last Active: {contact.last_active || 'just now'}</span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <a href={`https://wa.me/${contact.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', textDecoration: 'none' }}>
-                    <Phone size={13} />
-                  </a>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+           </div>
+        )}
+      </Card>
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div 
-          className="fade-up"
-          style={{
-            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 16, padding: '12px 24px', display: 'flex', alignItems: 'center',
-            gap: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 100, borderLeft: '4px solid var(--accent)'
-          }}
-        >
+        <div className="fade-up" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 100, borderLeft: '4px solid var(--accent)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>
-              {selectedIds.size}
-            </div>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Contacts Selected</span>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>{selectedIds.size}</div>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Selected</span>
           </div>
           <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
           <div style={{ display: 'flex', gap: 10 }}>
             <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Cancel</Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowBulkTag(true)}><TagIcon size={14} /> Tag</Button>
-            <Button variant="ghost" size="sm" onClick={handleExport}><Download size={14} /> Export</Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowBulkTag(true)}><TagIcon size={14} /> Bulk Tag</Button>
             <Button variant="danger" size="sm" onClick={handleBulkDelete}><Trash2 size={14} /> Delete</Button>
           </div>
         </div>
       )}
 
-      {showModal && <AddContactModal onClose={() => setShowModal(false)} onSave={handleAdd} />}
+      {showModal && <AddContactModal editingContact={editingContact} onClose={() => setShowModal(false)} onSave={handleSaveContact} />}
       {showBulkTag && <BulkTagModal count={selectedIds.size} onClose={() => setShowBulkTag(false)} onApply={handleBulkTag} />}
     </div>
   )

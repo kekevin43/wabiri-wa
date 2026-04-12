@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, Send, FileText, X, AlertCircle, CheckCircle2, ChevronRight, Loader2, Users, Tag as TagIcon, Search } from 'lucide-react'
+import { Upload, Send, FileText, X, AlertCircle, CheckCircle2, ChevronRight, Loader2, Users, User, Tag as TagIcon, Search, RefreshCw, Check } from 'lucide-react'
 import { Card, Button, Textarea, PageHeader, Badge, Input } from '../../components/ui'
 import { evolution } from '../../lib/evolution'
 import { supabase } from '../../lib/supabase'
@@ -25,6 +25,7 @@ export default function BulkSendPage() {
   const [progress, setProgress] = useState({ current: 0, total: 0, success: 0, fail: 0 })
   const [sent, setSent] = useState(false)
   const [search, setSearch] = useState('')
+  const [syncing, setSyncing] = useState(false)
   const fileRef = useRef()
 
   // 1. Fetch Instances
@@ -43,7 +44,7 @@ export default function BulkSendPage() {
     if (!user) return
     setLoading(true)
     try {
-      const { data } = await supabase.from('contacts').select('*').eq('user_id', user.id)
+      const { data } = await supabase.from('contacts').select('*').eq('user_id', user.id).order('full_name', { ascending: true })
       if (data) {
         setContacts(data)
         const tags = new Set()
@@ -52,6 +53,30 @@ export default function BulkSendPage() {
       }
     } finally { setLoading(false) }
   }, [user])
+
+  const handleSync = async () => {
+    if (!instance || syncing) return
+    setSyncing(true)
+    try {
+      const data = await evolution.findChats(instance)
+      const list = Array.isArray(data) ? data : (data?.data || data?.chats || [])
+      const toUpsert = []
+      list.forEach(chat => {
+        const jid = chat.remoteJid || chat.id
+        const num = jid.split('@')[0]
+        const name = chat.pushName || chat.name || num
+        toUpsert.push({ user_id: user.id, full_name: name, phone: num })
+      })
+      if (toUpsert.length > 0) {
+        await supabase.from('contacts').upsert(toUpsert, { onConflict: 'phone,user_id' })
+        await fetchSavedData()
+      }
+    } catch (e) {
+      alert('Sync failed: ' + e.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   useEffect(() => { 
     fetchInstances()
@@ -66,7 +91,7 @@ export default function BulkSendPage() {
       const lines = ev.target.result.split('\n').filter(Boolean)
       const parsed = lines.slice(1).map((line, i) => {
         const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''))
-        return { id: `up-${i}`, name: parts[1] || `Contact ${i + 1}`, phone: parts[0] || parts[1] }
+        return { id: `up-${i}`, full_name: parts[1] || `Contact ${i + 1}`, phone: parts[0] || parts[1] }
       }).filter(c => c.phone)
       setSelectedContacts(parsed)
     }; reader.readAsText(file)
@@ -88,7 +113,7 @@ export default function BulkSendPage() {
 
     for (let i = 0; i < list.length; i++) {
         const contact = list[i]
-        const msg = message.replace('{{name}}', contact.name)
+        const msg = message.replace(/\{\{name\}\}/g, contact.full_name)
         try {
           await evolution.sendMessage(instance, contact.phone, msg)
           setProgress(p => ({ ...p, current: i + 1, success: p.success + 1 }))
@@ -153,20 +178,45 @@ export default function BulkSendPage() {
                  )}
                  {/* Search Contacts */}
                  <div>
-                    <label style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: 10 }}>Individual Selection</label>
-                    <div style={{ position: 'relative', marginBottom: 12 }}>
-                       <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts..." style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
-                    <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                       {contacts.filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)).map(c => (
-                          <div key={c.id} onClick={() => setSelectedContacts(p => p.find(x => x.id === c.id) ? p.filter(x => x.id !== c.id) : [...p, c])} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', background: selectedContacts.find(x => x.id === c.id) ? 'var(--accent-glow)' : 'transparent' }}>
-                             <div style={{ width: 16, height: 16, borderRadius: 4, border: '2px solid var(--accent)', background: selectedContacts.find(x => x.id === c.id) ? 'var(--accent)' : 'transparent' }} />
-                             <span style={{ fontSize: 13, flex: 1 }}>{c.name}</span>
-                             <span style={{ fontSize: 11, color: 'var(--muted)' }}>{c.phone}</span>
-                          </div>
-                       ))}
-                    </div>
+                     <div style={{ position: 'relative', marginBottom: 12, display: 'flex', gap: 10 }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts..." style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={handleSync} disabled={!instance || syncing}>
+                           {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                           Sync
+                        </Button>
+                     </div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, padding: '0 4px' }}>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Individual Selection</span>
+                        <span 
+                           onClick={() => {
+                              const filtered = contacts.filter(c => !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search))
+                              if (selectedContacts.length === filtered.length) setSelectedContacts([])
+                              else setSelectedContacts(filtered)
+                           }} 
+                           style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                           {selectedContacts.length === contacts.filter(c => !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)).length ? 'Deselect All' : 'Select All'}
+                        </span>
+                     </div>
+                     <div style={{ maxHeight: 310, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                        {contacts.filter(c => !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)).map(c => (
+                           <div key={c.id} onClick={() => setSelectedContacts(p => p.find(x => x.id === c.id) ? p.filter(x => x.id !== c.id) : [...p, c])} style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '10px 15px', borderBottom: '1px solid var(--wa-border)', cursor: 'pointer', background: selectedContacts.find(x => x.id === c.id) ? 'var(--wa-active)' : 'transparent', transition: 'background 0.1s' }}>
+                              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--wa-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                                 <User size={24} color="var(--wa-text-muted)" />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                 <div style={{ fontSize: 16, color: 'var(--wa-text)', fontWeight: 400 }}>{c.full_name}</div>
+                                 <div style={{ fontSize: 13, color: 'var(--wa-text-muted)' }}>+{c.phone}</div>
+                              </div>
+                              <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--wa-accent)', background: selectedContacts.find(x => x.id === c.id) ? 'var(--wa-accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                 {selectedContacts.find(x => x.id === c.id) && <Check size={12} color="#000" strokeWidth={4} />}
+                              </div>
+                           </div>
+                        ))}
+                     </div>
                  </div>
               </div>
             ) : (
@@ -215,7 +265,7 @@ export default function BulkSendPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Account:</span><span style={{ fontWeight: 700 }}>{instance}</span></div>
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                          <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 6 }}>Message Preview:</div>
-                         <div style={{ fontSize: 14, fontStyle: 'italic', color: 'var(--accent)' }}>{message.replace('{{name}}', '[Name]')}</div>
+                         <div style={{ fontSize: 14, fontStyle: 'italic', color: 'var(--accent)' }}>{message.replace(/\{\{name\}\}/g, '[Name]')}</div>
                       </div>
                    </div>
                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 32, padding: '12px', background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)', borderRadius: 8, color: 'var(--warning)', fontSize: 13 }}>

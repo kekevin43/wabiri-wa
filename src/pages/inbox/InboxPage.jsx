@@ -269,9 +269,12 @@ export default function InboxPage() {
     const isFirst = chats.length === 0
     if (isFirst) setLoadingChats(true)
     fetchChats(activeInstance).finally(() => { if (isFirst) setLoadingChats(false) })
-    clearInterval(chatPollRef.current); chatPollRef.current = setInterval(() => fetchChats(activeInstance), 8000)
+    
+    // Poll faster (3s) during initial sync, then slow down (8s) once chats are loaded
+    const pollInterval = chats.length === 0 ? 3000 : 8000
+    clearInterval(chatPollRef.current); chatPollRef.current = setInterval(() => fetchChats(activeInstance), pollInterval)
     return () => clearInterval(chatPollRef.current)
-  }, [activeInstance, instances, fetchChats])
+  }, [activeInstance, instances, fetchChats, chats.length])
 
   // 6. Messages
   const fetchMessages = useCallback(async (inst, chat) => {

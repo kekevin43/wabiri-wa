@@ -396,6 +396,12 @@ export default function InboxPage() {
              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}><Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 12px' }} /><div style={{ fontSize: 13 }}>Connecting...</div></div>
           ) : !isConnected && activeInstance ? (
              <div style={{ padding: 30, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Device offline.<br /><a href="/instances" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Reconnect →</a></div>
+          ) : (chats.length === 0 && isConnected) ? (
+             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+               <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 12px' }} />
+               <div style={{ fontSize: 13, fontWeight: 500 }}>Synchronizing Chats...</div>
+               <div style={{ fontSize: 11, marginTop: 4 }}>This can take up to 60 seconds for large accounts.</div>
+             </div>
           ) : (chats.filter(c => {
             const jid = c.remoteJid || c.id || ''
             if (jid === 'status@broadcast' || jid.endsWith('@newsletter')) return false

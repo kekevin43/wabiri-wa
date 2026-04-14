@@ -132,11 +132,11 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
               )}
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20, lineHeight: 1.5 }}>
-              Open WhatsApp â <strong>Settings â Linked Devices â Link a Device</strong>
+              Open WhatsApp -> <strong>Settings -> Linked Devices -> Link a Device</strong>
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
               <Loader2 className="animate-spin" size={14} color="var(--accent)" />
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Waiting for scanâ¦</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Waiting for scan...</span>
               <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
             </div>
           </>
@@ -264,7 +264,7 @@ export default function InstancesPage() {
       {loading ? (
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--muted)' }}>
           <Loader2 className="animate-spin" size={28} style={{ margin: '0 auto 12px', display: 'block' }} />
-          Loading devicesâ¦
+          Loading devices...
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>

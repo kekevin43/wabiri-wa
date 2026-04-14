@@ -90,7 +90,7 @@ export const evolution = {
 
   // Chats
   findChats: async (instanceName) => 
-    request(`/chat/findChats/${instanceName}`, { method: 'POST', body: JSON.stringify({}) }),
+    request(`/chat/findChats/${instanceName}`),
 
   findMessages: async (instanceName, remoteJid) =>
     request(`/chat/findMessages/${instanceName}`, { 

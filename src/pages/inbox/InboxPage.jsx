@@ -4,7 +4,7 @@ import {
   Video, Loader2, Smartphone, Send as SendIcon, X, RefreshCw,
   UserPlus, CheckCheck as CheckAll, Settings, Archive, Trash2,
   BellOff, Star, Copy, Forward, StopCircle, FileText, Image as ImageIcon,
-  Check, User, LogOut
+  Check, User, LogOut, Lock
 } from 'lucide-react'
 import { evolution } from '../../lib/evolution'
 import { supabase } from '../../lib/supabase'
@@ -617,7 +617,7 @@ export default function InboxPage() {
                 Use WhatsApp on up to 4 linked devices and 1 phone at the same time.
               </p>
               <div style={{ fontSize: 14, color: 'var(--wa-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <LockOut size={14} /> End-to-end encrypted
+                <Lock size={14} /> End-to-end encrypted
               </div>
             </div>
           </div>

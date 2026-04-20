@@ -1,4 +1,4 @@
-# 🟢 WaBiri User Guide: Getting Started
+                                                                                                                                            `# 🟢 WaBiri User Guide: Getting Started
 
 Welcome to **WaBiri**! This guide will help you manage your contacts and send bulk WhatsApp messages efficiently. Whether you are a real estate agent or a small business owner, this platform is built to make your communication seamless.
 

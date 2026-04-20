@@ -279,7 +279,9 @@ export default function InboxPage() {
   // 6. Messages
   const fetchMessages = useCallback(async (inst, chat) => {
     if (!inst || !chat) return
-    const jid = chat.remoteJid || chat.id
+    const rawJid = chat.remoteJid || chat.id
+    // Ensure we have a fully-qualified JID for the API request
+    const jid = rawJid.includes('@') ? rawJid : `${rawJid}@s.whatsapp.net`
     try {
       const data = await evolution.findMessages(inst, jid)
       let list = []
@@ -288,6 +290,15 @@ export default function InboxPage() {
       else if (Array.isArray(data?.messages?.records)) list = data.messages.records
       else if (Array.isArray(data?.data)) list = data.data
       else if (Array.isArray(data?.records)) list = data.records
+      
+      // Client-side filter: Evolution API may return ALL messages for the instance.
+      // We must ensure only messages belonging to THIS contact/chat are shown.
+      const chatNumber = rawJid.split('@')[0]
+      list = list.filter(msg => {
+        const msgJid = msg.key?.remoteJid || ''
+        const msgNumber = msgJid.split('@')[0]
+        return msgNumber === chatNumber
+      })
       
       list.sort((a, b) => (a.messageTimestamp || 0) - (b.messageTimestamp || 0))
       setMessages(list)

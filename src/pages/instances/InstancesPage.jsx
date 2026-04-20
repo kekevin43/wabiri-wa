@@ -132,7 +132,7 @@ function QRModal({ instanceName: existingName, onClose, onSuccess }) {
               )}
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20, lineHeight: 1.5 }}>
-              Open WhatsApp -> <strong>Settings -> Linked Devices -> Link a Device</strong>
+              Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong>
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
               <Loader2 className="animate-spin" size={14} color="var(--accent)" />

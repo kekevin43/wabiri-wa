@@ -95,7 +95,7 @@ export const evolution = {
   findMessages: async (instanceName, remoteJid) =>
     request(`/chat/findMessages/${instanceName}`, { 
       method: 'POST', 
-      body: JSON.stringify({ where: { remoteJid } }) 
+      body: JSON.stringify({ where: { key: { remoteJid } } }) 
     }),
 
   syncContacts: async (instanceName) =>

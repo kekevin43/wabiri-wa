@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, Send, FileText, X, AlertCircle, CheckCircle2, ChevronRight, Loader2, Users, User, Tag as TagIcon, Search, RefreshCw, Check } from 'lucide-react'
+import { Upload, Send, X, AlertCircle, CheckCircle2, ChevronRight, Loader2, Users, User, Tag as TagIcon, Search, RefreshCw, Check, Image, FileText } from 'lucide-react'
 import { Card, Button, Textarea, PageHeader, Badge, Input } from '../../components/ui'
 import { evolution } from '../../lib/evolution'
 import { supabase } from '../../lib/supabase'
@@ -26,6 +26,13 @@ export default function BulkSendPage() {
   const [sent, setSent] = useState(false)
   const [search, setSearch] = useState('')
   const [syncing, setSyncing] = useState(false)
+
+  // Media / poster state
+  const [mediaBase64, setMediaBase64] = useState(null)
+  const [mediaName, setMediaName] = useState('')
+  const [mediaPreview, setMediaPreview] = useState(null)
+  const mediaRef = useRef()
+
   const fileRef = useRef()
 
   // 1. Fetch Instances
@@ -113,6 +120,22 @@ export default function BulkSendPage() {
     }; reader.readAsText(file)
   }
 
+  const handleMediaUpload = (e) => {
+    const file = e.target.files?.[0]; if (!file) return
+    setMediaName(file.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const result = ev.target.result // data:image/jpeg;base64,...
+      setMediaPreview(result)
+      // Strip the data URL prefix, keep only base64
+      setMediaBase64(result.split(',')[1])
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const clearMedia = () => { setMediaBase64(null); setMediaName(''); setMediaPreview(null) }
+
   const getFinalRecipients = () => {
     if (method === 'upload') return selectedContacts
     let base = [...selectedContacts]
@@ -125,21 +148,58 @@ export default function BulkSendPage() {
 
   const handleSend = async () => {
     const list = getFinalRecipients()
-    setSending(true); setProgress({ current: 0, total: list.length, success: 0, fail: 0 })
+    setSending(true)
+    setProgress({ current: 0, total: list.length, success: 0, fail: 0 })
+
+    // Save campaign record to Supabase for tracking
+    let campaignId = null
+    try {
+      const { data: camp } = await supabase.from('campaigns').insert({
+        user_id: user.id,
+        name: `Broadcast ${new Date().toLocaleString()}`,
+        message,
+        instance,
+        status: 'sending',
+        target_tag: selectedTags.join(',') || null,
+        stats: { sent: 0, delivered: 0, failed: 0 }
+      }).select('id').single()
+      campaignId = camp?.id
+    } catch (_) {}
+
+    let successCount = 0, failCount = 0
 
     for (let i = 0; i < list.length; i++) {
-        const contact = list[i]
-        const msg = message.replace(/\{\{name\}\}/g, contact.full_name)
-        try {
-          await evolution.sendMessage(instance, contact.phone, msg)
-          setProgress(p => ({ ...p, current: i + 1, success: p.success + 1 }))
-        } catch (e) {
-          setProgress(p => ({ ...p, current: i + 1, fail: p.fail + 1 }))
+      const contact = list[i]
+      const caption = message.replace(/\{\{name\}\}/g, contact.full_name)
+      try {
+        if (mediaBase64) {
+          await evolution.sendMedia(instance, contact.phone, mediaBase64, mediaName, caption, 'image')
+        } else {
+          await evolution.sendMessage(instance, contact.phone, caption)
         }
-        // Random safety delay: 3-6 seconds
-        if (i < list.length - 1) await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000))
+        successCount++
+        setProgress(p => ({ ...p, current: i + 1, success: p.success + 1 }))
+      } catch (e) {
+        failCount++
+        setProgress(p => ({ ...p, current: i + 1, fail: p.fail + 1 }))
+      }
+
+      // Update campaign stats every 10 sends
+      if (campaignId && i % 10 === 0) {
+        supabase.from('campaigns').update({ stats: { sent: successCount + failCount, delivered: successCount, failed: failCount } }).eq('id', campaignId).then(() => {})
+      }
+
+      // Random safety delay: 3-6 seconds
+      if (i < list.length - 1) await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000))
     }
-    setSending(false); setSent(true)
+
+    // Final update
+    if (campaignId) {
+      await supabase.from('campaigns').update({ status: 'completed', stats: { sent: list.length, delivered: successCount, failed: failCount } }).eq('id', campaignId)
+    }
+
+    setSending(false)
+    setSent(true)
   }
 
   if (sent) return (
@@ -149,7 +209,7 @@ export default function BulkSendPage() {
       </div>
       <h2 style={{ fontSize: 24, marginBottom: 8 }}>Campaign Sent!</h2>
       <p style={{ color: 'var(--muted)', marginBottom: 32 }}>Delivered {progress.success} messages successfully.</p>
-      <Button onClick={() => { setSent(false); setStep(0); setSelectedContacts([]); setSelectedTags([]); setMessage('') }}>Start New Batch</Button>
+      <Button onClick={() => { setSent(false); setStep(0); setSelectedContacts([]); setSelectedTags([]); setMessage(''); clearMedia() }}>Start New Batch</Button>
     </div>
   )
 
@@ -271,6 +331,29 @@ export default function BulkSendPage() {
              </div>
              <Textarea label="Personalized Message" value={message} onChange={e => setMessage(e.target.value)} placeholder={`Hi {{name}}, checking in regarding...`} style={{ minHeight: 160 }} />
              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>Tip: Use <code style={{ color: 'var(--accent)', fontWeight: 600 }}>{`{{name}}`}</code> to auto-insert their name.</p>
+
+             {/* Poster / Media Upload */}
+             <div style={{ marginTop: 20 }}>
+               <label style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 10 }}>Attach Poster / Image (optional)</label>
+               {mediaPreview ? (
+                 <div style={{ position: 'relative', display: 'inline-block' }}>
+                   <img src={mediaPreview} alt="poster preview" style={{ maxHeight: 160, maxWidth: '100%', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }} />
+                   <button onClick={clearMedia} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                     <X size={12} color="#fff" />
+                   </button>
+                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>{mediaName}</div>
+                 </div>
+               ) : (
+                 <div onClick={() => mediaRef.current?.click()} style={{ border: '2px dashed var(--border)', borderRadius: 10, padding: '24px', textAlign: 'center', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}
+                   onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                   onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                 >
+                   <Image size={20} color="var(--muted)" />
+                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>Click to attach a poster image (JPG, PNG)</span>
+                 </div>
+               )}
+               <input ref={mediaRef} type="file" accept="image/*" onChange={handleMediaUpload} style={{ display: 'none' }} />
+             </div>
              
              <div style={{ marginTop: 32, display: 'flex', justifyContent: 'space-between' }}>
                 <Button variant="ghost" onClick={() => setStep(0)}>Back</Button>
@@ -291,6 +374,12 @@ export default function BulkSendPage() {
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                          <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 6 }}>Message Preview:</div>
                          <div style={{ fontSize: 14, fontStyle: 'italic', color: 'var(--accent)' }}>{message.replace(/\{\{name\}\}/g, '[Name]')}</div>
+                         {mediaPreview && (
+                           <div style={{ marginTop: 12 }}>
+                             <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 6 }}>Poster attached:</div>
+                             <img src={mediaPreview} alt="poster" style={{ maxHeight: 100, borderRadius: 8, border: '1px solid var(--border)' }} />
+                           </div>
+                         )}
                       </div>
                    </div>
                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 32, padding: '12px', background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)', borderRadius: 8, color: 'var(--warning)', fontSize: 13 }}>

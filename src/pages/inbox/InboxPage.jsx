@@ -343,8 +343,18 @@ export default function InboxPage() {
   }
 
   const fmtTime = (ts) => {
-    if (!ts) return ''; const d = new Date(ts > 1e12 ? ts : ts * 1000)
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (!ts) return ''
+    const d = new Date(ts > 1e12 ? ts : ts * 1000)
+    const now = new Date()
+    const isToday = d.toDateString() === now.toDateString()
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1)
+    const isYesterday = d.toDateString() === yesterday.toDateString()
+    if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (isYesterday) return 'Yesterday'
+    // Within last 7 days — show day name
+    const daysAgo = Math.floor((now - d) / 86400000)
+    if (daysAgo < 7) return d.toLocaleDateString([], { weekday: 'short' })
+    return d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' })
   }
   
   const getChatName = (chat) => {
@@ -423,7 +433,15 @@ export default function InboxPage() {
       <div style={{ width: '30%', minWidth: 340, maxWidth: 420, borderRight: '1px solid var(--wa-border)', display: 'flex', flexDirection: 'column', background: 'var(--wa-sidebar)' }}>
         {/* Header */}
         <div style={{ height: 59, padding: '0 16px', background: 'var(--wa-header)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--wa-text)', letterSpacing: -0.2 }}>WhatsApp</span>
+          {/* User avatar — left side like WhatsApp Web */}
+          <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', cursor: 'pointer', flexShrink: 0 }}>
+            {user?.user_metadata?.avatar_url
+              ? <img src={user.user_metadata.avatar_url} alt="me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6b7b8a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#fff', fontWeight: 600 }}>
+                  {(user?.email || 'U')[0].toUpperCase()}
+                </div>
+            }
+          </div>
           <div style={{ display: 'flex', gap: 2, alignItems: 'center', position: 'relative' }}>
             <IconBtn icon={RefreshCw} onClick={handleDeepSync} spinning={syncing} />
             <IconBtn icon={UserPlus} />
@@ -482,20 +500,27 @@ export default function InboxPage() {
             const preview = getLastPreview(chat)
             const hasUnread = (chat.unreadCount || 0) > 0
             return (
-            <div key={chat.remoteJid || chat.id} onClick={() => setSelectedChat(chat)} style={{ display: 'flex', cursor: 'pointer', alignItems: 'center', background: isSelected ? 'var(--wa-active)' : 'transparent', transition: 'background 0.15s' }} onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--wa-hover)' }} onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}>
-              <div style={{ padding: '0 13px 0 15px', display: 'flex', alignItems: 'center' }}><Avatar name={getChatName(chat)} url={chat.profilePicUrl} jid={chat.remoteJid || chat.id} size={49} /></div>
-              <div style={{ flex: 1, padding: '13px 15px 13px 0', borderBottom: '1px solid var(--wa-border)', minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
-                  <span style={{ fontSize: 17, fontWeight: 400, color: 'var(--wa-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 6 }}>{getChatName(chat)}</span>
-                  <span style={{ fontSize: 12, color: hasUnread ? 'var(--wa-accent)' : 'var(--wa-text-muted)', flexShrink: 0 }}>{fmtTime(chat.conversationTimestamp)}</span>
+            <div key={chat.remoteJid || chat.id} onClick={() => setSelectedChat(chat)}
+              style={{ display: 'flex', cursor: 'pointer', alignItems: 'center', background: isSelected ? 'var(--wa-active)' : 'transparent', transition: 'background 0.1s' }}
+              onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--wa-hover)' }}
+              onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}>
+              {/* Avatar */}
+              <div style={{ padding: '0 12px 0 13px', flexShrink: 0 }}>
+                <Avatar name={getChatName(chat)} url={chat.profilePicUrl} jid={chat.remoteJid || chat.id} size={49} />
+              </div>
+              {/* Content */}
+              <div style={{ flex: 1, padding: '10px 16px 10px 0', borderBottom: '1px solid var(--wa-border)', minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 1 }}>
+                  <span style={{ fontSize: 16.5, fontWeight: 400, color: 'var(--wa-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>{getChatName(chat)}</span>
+                  <span style={{ fontSize: 11.5, color: hasUnread ? 'var(--wa-accent)' : 'var(--wa-text-muted)', flexShrink: 0, letterSpacing: '0.01em' }}>{fmtTime(chat.conversationTimestamp)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: 14, color: 'var(--wa-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 20 }}>
+                  <div style={{ fontSize: 13.5, color: 'var(--wa-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {chat.lastMessage && !hasUnread && <MessageStatus status={chat.lastMessage?.status || 2} />}
-                    <span>{preview || ''}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview || ' '}</span>
                   </div>
                   {hasUnread && (
-                    <div style={{ background: 'var(--wa-accent)', color: '#111b21', borderRadius: '50%', minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, padding: '0 5px', marginLeft: 6, flexShrink: 0 }}>{chat.unreadCount}</div>
+                    <div style={{ background: 'var(--wa-accent)', color: '#111b21', borderRadius: 10, minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700, padding: '0 6px', marginLeft: 8, flexShrink: 0 }}>{chat.unreadCount}</div>
                   )}
                 </div>
               </div>

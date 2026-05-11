@@ -80,6 +80,14 @@ export default function InboxPage() {
   const [headerMenu, setHeaderMenu] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
 
+  const emojiRef = useRef(null)
+  useEffect(() => {
+    if (!emojiOpen) return
+    const handler = (e) => { if (emojiRef.current && !emojiRef.current.contains(e.target)) setEmojiOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [emojiOpen])
+
   const messagesEndRef = useRef(null)
   const chatPollRef = useRef(null)
   const msgPollRef = useRef(null)
@@ -347,18 +355,35 @@ export default function InboxPage() {
     return formatContactName(nameStr)
   }
 
+  const AVATAR_COLORS = [
+    '#d32f2f','#c2185b','#7b1fa2','#512da8','#1976d2',
+    '#0288d1','#00796b','#388e3c','#f57c00','#5d4037','#455a64'
+  ]
+  const getAvatarColor = (str) => {
+    if (!str) return AVATAR_COLORS[0]
+    let h = 0
+    for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h)
+    return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+  }
+  const getInitials = (name) => {
+    if (!name) return '?'
+    const clean = name.replace(/^\+/, '')
+    if (/^\d+$/.test(clean)) return '#'
+    const parts = clean.trim().split(/\s+/)
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+    return clean[0].toUpperCase()
+  }
+
   const Avatar = ({ name, url, jid, size = 49 }) => {
     const finalUrl = url || (jid ? profilePics[jid] : null)
+    const bg = getAvatarColor(name)
+    const initials = getInitials(name)
     return (
-      <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: '#6b7b8a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {finalUrl ? (
-          <img src={finalUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={finalUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
         ) : (
-          <svg viewBox="0 0 212 212" width={size} height={size}>
-            <path fill="#DFE5E7" d="M106.251 0.5C164.653 0.5 212 47.846 212 106.25S164.653 212 106.25 212C47.846 212 0.5 164.654 0.5 106.25S47.846 0.5 106.251 0.5Z" />
-            <path fill="#FFF" d="M173.561 171.615a62.767 62.767 0 0 0-2.065-2.955 67.7 67.7 0 0 0-2.608-3.299 70.112 70.112 0 0 0-3.184-3.527 71.097 71.097 0 0 0-5.924-5.47 72.458 72.458 0 0 0-10.204-7.026 75.2 75.2 0 0 0-5.98-3.055c-.062-.028-.118-.059-.18-.087-9.792-4.44-22.106-7.529-37.416-7.529s-27.624 3.089-37.416 7.529c-.338.153-.67.312-1.004.474a75.37 75.37 0 0 0-5.156 2.668 72.46 72.46 0 0 0-10.204 7.026 71.09 71.09 0 0 0-5.924 5.47 70.08 70.08 0 0 0-3.184 3.527 67.67 67.67 0 0 0-2.608 3.299 62.696 62.696 0 0 0-2.065 2.955 56.33 56.33 0 0 0-1.447 2.324c-.033.056-.073.119-.104.174a47.92 47.92 0 0 0-1.07 1.926c-.559 1.068-.818 1.678-.818 1.678v.398c18.285 17.927 43.322 28.985 70.945 28.985 27.623 0 52.661-11.058 70.945-28.985v-.398s-.259-.61-.818-1.678a47.58 47.58 0 0 0-1.07-1.926Z" />
-            <path fill="#FFF" d="M106 0.5C135.846 0.5 160 24.654 160 54.5S135.846 108.5 106 108.5 52 84.346 52 54.5 76.154 0.5 106 0.5Z" transform="translate(0 32)" />
-          </svg>
+          <span style={{ color: '#fff', fontWeight: 500, fontSize: size * 0.36, userSelect: 'none', lineHeight: 1 }}>{initials}</span>
         )}
       </div>
     )
@@ -519,6 +544,21 @@ export default function InboxPage() {
                   })}
                   <div ref={messagesEndRef} />
                 </div>
+
+                {/* Emoji Picker */}
+                {emojiOpen && (
+                  <div ref={emojiRef} style={{ background: 'var(--wa-header)', borderTop: '1px solid var(--wa-border)', padding: '10px 14px', display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
+                    {['😀','😂','😍','🥰','😎','😭','😅','🤣','😊','😇','🥳','😏','😒','😔','😤','😡','🤔','🤗','😴','🥺',
+                      '👍','👎','👏','🙌','🤝','🤞','✌️','🤟','💪','🙏','👋','🤙','☝️','👀','💯','🔥','❤️','💔','💬','✅',
+                      '🎉','🎊','🎁','🎈','🌟','⭐','💫','✨','🌈','☀️','🌙','⚡','💥','❄️','🌊','🍕','🍔','☕','🍺','🎵'].map(em => (
+                      <button key={em} onClick={() => { setMessageText(prev => prev + em); setEmojiOpen(false) }}
+                        style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--wa-active)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                      >{em}</button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Input Area */}
                 <div style={{ padding: '5px 16px', background: 'var(--wa-header)', display: 'flex', alignItems: 'center', minHeight: 62 }}>

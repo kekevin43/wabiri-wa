@@ -228,18 +228,18 @@ export default function InstancesPage() {
   }
 
   const handleDelete = async (inst) => {
-    if (!inst?.name) return
+    if (!inst?.fullName) return
     if (!confirm(`Are you sure you want to remove device "${inst.name}"?`)) return
     
     setDeletingId(inst.name)
     try {
       // 1. If connected, try to logout first (makes deletion smoother in Evolution API)
       if (inst.status === 'connected') {
-        try { await evolution.logoutInstance(inst.name) } catch (e) { console.warn('Logout failed, moving to delete', e) }
+        try { await evolution.logoutInstance(inst.fullName) } catch (e) { console.warn('Logout failed, moving to delete', e) }
       }
       
-      // 2. Perform the actual deletion
-      await evolution.deleteInstance(inst.name)
+      // 2. Perform the actual deletion using the FULL prefixed name
+      await evolution.deleteInstance(inst.fullName)
       
       // Refresh the list
       await fetchInstances(true)
@@ -307,7 +307,7 @@ export default function InstancesPage() {
                   <InstanceCard
                     key={inst.id}
                     inst={inst}
-                    onConnect={() => setModal({ instanceName: inst.name })}
+                    onConnect={() => setModal({ instanceName: inst.fullName })}
                     onDelete={() => handleDelete(inst)}
                     deleting={deletingId === inst.name}
                   />

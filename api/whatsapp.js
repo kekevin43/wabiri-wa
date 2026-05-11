@@ -10,15 +10,18 @@ export default async function handler(req, res) {
      // Optional: For now we let it pass but we'll soon lock it to specific user IDs
   }
 
-  // 2. Extract path and all other query parameters
-  const { path, ...queryParams } = req.query;
-  if (!path) return res.status(400).json({ error: 'Missing path parameter' });
+  // 2. Extract path — Vercel wildcard rewrites pass segments as req.query.path (string or array)
+  // Fallback: parse from req.url stripping the /api/whatsapp prefix
+  const { path: rawPath, ...queryParams } = req.query;
+  let resolvedPath = Array.isArray(rawPath) ? rawPath.join('/') : rawPath;
+  if (!resolvedPath) {
+    const urlPath = req.url.split('?')[0];
+    resolvedPath = urlPath.replace(/^\/api\/whatsapp\/?/, '') || '';
+  }
+  if (!resolvedPath) return res.status(400).json({ error: 'Missing path parameter' });
 
-  // Construct the full URL — req.query already URL-decodes the path string,
-  // so just prefix a slash and append it directly. Do NOT re-encode segments
-  // because that would turn "/instance/delete/foo" into "%2Finstance%2F..."
   const baseUrl = EVOLUTION_URL.endsWith('/') ? EVOLUTION_URL.slice(0, -1) : EVOLUTION_URL;
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const cleanPath = resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`;
   const searchParams = new URLSearchParams(queryParams).toString();
   const fullUrl = `${baseUrl}${cleanPath}${searchParams ? `?${searchParams}` : ''}`;
   console.log(`[proxy] ${req.method} ${fullUrl}`);
